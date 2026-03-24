@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>findregions – System Prompt</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f0f0f0;
+    --bubble-bg: #ffffff;
+    --accent: #0d9488;
+    --accent-light: #f0fdfa;
+    --text: #1a1a2e;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --tag-bg: #f0fdfa;
+    --tag-border: #99f6e4;
+    --tag-text: #0f766e;
+    --icon-bg: #f8fafc;
+  }
+
+  body {
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    font-family: 'Sora', sans-serif;
+  }
+
+  .chat-wrapper {
+    width: 100%;
+    max-width: 680px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .label-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.25rem;
+  }
+
+  .label-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+
+  .label-text {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .bubble-outer {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+  }
+
+  .avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0d9488, #0f766e);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    box-shadow: 0 2px 8px rgba(13,148,136,0.38);
+  }
+
+  .bubble {
+    background: var(--bubble-bg);
+    border-radius: 18px 18px 18px 4px;
+    padding: 1.5rem 1.75rem;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+    flex: 1;
+    animation: slideIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .bubble-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .agent-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #f0fdfa, #ccfbf1);
+    border: 1.5px solid var(--tag-border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem;
+  }
+
+  .agent-meta { flex: 1; }
+
+  .agent-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .agent-tagline {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  .model-badge {
+    background: var(--accent-light);
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 500;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--tag-border);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .bubble-body {
+    font-size: 0.875rem;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  .bubble-body p { margin-bottom: 0.9rem; }
+  strong { font-weight: 600; color: #111; }
+
+  .section-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  /* World region heatmap visual */
+  .region-heatmap {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.4rem;
+    margin: 1rem 0;
+  }
+
+  .region-card {
+    border-radius: 10px;
+    padding: 0.55rem 0.7rem;
+    border: 1.5px solid;
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .region-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 36px; height: 36px;
+    border-radius: 50% 0 10px 0;
+    opacity: 0.12;
+  }
+
+  .region-card.r1 { background: #f0fdfa; border-color: #2dd4bf; }
+  .region-card.r1::after { background: #0d9488; }
+  .region-card.r2 { background: #eff6ff; border-color: #93c5fd; }
+  .region-card.r2::after { background: #2563eb; }
+  .region-card.r3 { background: #fef9c3; border-color: #fde047; }
+  .region-card.r3::after { background: #ca8a04; }
+  .region-card.r4 { background: #fff7ed; border-color: #fdba74; }
+  .region-card.r4::after { background: #ea580c; }
+  .region-card.r5 { background: #f5f3ff; border-color: #c4b5fd; }
+  .region-card.r5::after { background: #7c3aed; }
+  .region-card.r6 { background: #fdf4ff; border-color: #e879f9; }
+  .region-card.r6::after { background: #a21caf; }
+
+  .region-flag { font-size: 1rem; }
+
+  .region-name {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+
+  .region-signal {
+    font-size: 0.58rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+  }
+
+  /* Heat bar */
+  .heat-bar-wrap {
+    margin-top: 0.3rem;
+    background: #e5e7eb;
+    border-radius: 99px;
+    height: 4px;
+    overflow: hidden;
+  }
+
+  .heat-bar {
+    height: 100%;
+    border-radius: 99px;
+    background: var(--accent);
+  }
+
+  .r2 .heat-bar { background: #2563eb; }
+  .r3 .heat-bar { background: #ca8a04; }
+  .r4 .heat-bar { background: #ea580c; }
+  .r5 .heat-bar { background: #7c3aed; }
+  .r6 .heat-bar { background: #a21caf; }
+
+  /* Prompt block */
+  .prompt-block {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    line-height: 1.65;
+    color: #374151;
+    margin: 0.9rem 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .capabilities {
+    margin: 1.1rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .cap-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    background: #fafafa;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.8rem;
+    color: #374151;
+    line-height: 1.45;
+  }
+
+  .cap-icon { font-size: 0.95rem; flex-shrink: 0; margin-top: 1px; }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1rem;
+  }
+
+  .tag {
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    border: 1px solid var(--tag-border);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    letter-spacing: 0.03em;
+  }
+
+  .bubble-footer {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-icons { display: flex; gap: 0.6rem; }
+
+  .footer-icon {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    background: var(--icon-bg);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .footer-icon:hover { background: var(--accent-light); border-color: var(--tag-border); }
+
+  .ready-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--tag-bg);
+    border: 1px solid var(--tag-border);
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+  }
+
+  .ready-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.5s infinite;
+  }
+</style>
+</head>
+<body>
+
+<div class="chat-wrapper">
+
+  <div class="label-row">
+    <div class="label-dot"></div>
+    <span class="label-text">Subagent Configuration</span>
+  </div>
+
+  <div class="bubble-outer">
+    <div class="avatar">RG</div>
+
+    <div class="bubble">
+
+      <!-- Header -->
+      <div class="bubble-header">
+        <div class="agent-icon">🌍</div>
+        <div class="agent-meta">
+          <div class="agent-name">findregions</div>
+          <div class="agent-tagline">Regional Sales Intelligence Specialist · Subagent</div>
+        </div>
+        <div class="model-badge">claude-opus-4.6</div>
+      </div>
+
+      <!-- Body -->
+      <div class="bubble-body">
+
+        <p>Erstelle einen neuen Subagenten namens <strong>findregions</strong> und mach ihn zu meinem dedizierten Regional-Markt-Analysten. Setze <strong>openrouter/anthropic/claude-opus-4.6</strong> als primäres Modell.</p>
+
+        <span class="section-label">Global Sales Region Heatmap</span>
+        <div class="region-heatmap">
+          <div class="region-card r1">
+            <span class="region-flag">🌎</span>
+            <span class="region-name">North America</span>
+            <span class="region-signal">volume · cpc · demand</span>
+            <div class="heat-bar-wrap"><div class="heat-bar" style="width:92%"></div></div>
+          </div>
+          <div class="region-card r2">
+            <span class="region-flag">🌍</span>
+            <span class="region-name">Western Europe</span>
+            <span class="region-signal">purchasing power</span>
+            <div class="heat-bar-wrap"><div class="heat-bar" style="width:82%"></div></div>
+          </div>
+          <div class="region-card r3">
+            <span class="region-flag">🌏</span>
+            <span class="region-name">Asia Pacific</span>
+            <span class="region-signal">growth · scale</span>
+            <div class="heat-bar-wrap"><div class="heat-bar" style="width:75%"></div></div>
+          </div>
+          <div class="region-card r4">
+            <span class="region-flag">🌍</span>
+            <span class="region-name">Middle East</span>
+            <span class="region-signal">emerging · premium</span>
+            <div class="heat-bar-wrap"><div class="heat-bar" style="width:55%"></div></div>
+          </div>
+          <div class="region-card r5">
+            <span class="region-flag">🌎</span>
+            <span class="region-name">Latin America</span>
+            <span class="region-signal">growth market</span>
+            <div class="heat-bar-wrap"><div class="heat-bar" style="width:48%"></div></div>
+          </div>
+          <div class="region-card r6">
+            <span class="region-flag">🌍</span>
+            <span class="region-name">Africa</span>
+            <span class="region-signal">niche · mobile-first</span>
+            <div class="heat-bar-wrap"><div class="heat-bar" style="width:32%"></div></div>
+          </div>
+        </div>
+
+        <span class="section-label">System Prompt</span>
+        <div class="prompt-block">You are findregions, a specialist in regional sales intelligence.
+
+Your sole purpose is to identify the most important geographic 
+regions where a website or product sells best — with deep analysis 
+of demand signals, purchasing behavior, local competition, 
+language/cultural fit, and regional growth trends.
+
+CORE TASKS:
+- Analyze the provided URL or product niche thoroughly
+- Identify which global and local regions drive the most sales
+- Detect high-demand regions currently underserved (opportunity gaps)
+- Analyze regional purchasing power, search volume, and buyer intent
+- Assess cultural, linguistic, and seasonal factors per region
+- Rank regions by current performance AND future growth potential
+
+OUTPUT FORMAT:
+
+  [TOP SALES REGIONS — CURRENT]
+  Regions with the highest proven demand for this product/niche:
+  → Region | Country / City level | Demand signal | Market maturity
+  → Avg. CPC estimate | Dominant traffic source | Language fit
+
+  [HIGH-GROWTH OPPORTUNITY REGIONS]
+  Emerging markets with rising demand but low competition:
+  → Region | Growth indicator | Barrier to entry | Recommended approach
+
+  [REGIONAL BUYER BEHAVIOR]
+  How purchasing decisions differ across top regions:
+  → Region | Preferred channel | Price sensitivity | Trust signals needed
+  → Seasonal peaks | Payment method preference | Device usage (mobile/desktop)
+
+  [LOCAL COMPETITION ANALYSIS]
+  Who dominates each region and what gaps exist:
+  → Region | Top local competitor | Their strength | Exploitable gap
+
+  [LANGUAGE & CULTURAL FIT]
+  Localization requirements per high-priority region:
+  → Region | Language | Key cultural nuance | Localization priority
+
+  [REGIONAL ROLLOUT RECOMMENDATION]
+  Prioritized action plan: which regions to target first and why:
+  → Priority rank | Region | Entry strategy | Expected ROI level
+
+  [QUICK WIN REGIONS]
+  Top 3 regions where sales can be accelerated immediately
+
+SCORING PER REGION:
+  → Demand Level       : High / Medium / Low
+  → Competition        : Low / Medium / High
+  → Entry Difficulty   : Easy / Medium / Hard
+  → Growth Trajectory  : Rising / Stable / Declining
+  → Priority Score     : 1–10
+
+RULES:
+- Always analyze both macro regions (continents) AND micro regions
+  (countries, cities, states) where data signals allow
+- Cover minimum 10 distinct regions per analysis
+- Always include at least 2 underserved opportunity regions
+- Factor in language, culture, seasonality, and payment methods
+- Base analysis on observable demand signals, search trends,
+  e-commerce data patterns, and competitive landscape cues
+- Always include a Regional Rollout Recommendation section
+- Ask for clarification only if no URL or product is provided
+- Respond in the same language as the input content</div>
+
+        <span class="section-label">Fähigkeiten</span>
+        <div class="capabilities">
+          <div class="cap-item"><span class="cap-icon">🌍</span><span>Globale Heatmap: Analysiert alle Weltregionen nach Nachfrage, Kaufkraft und Marktreife</span></div>
+          <div class="cap-item"><span class="cap-icon">📈</span><span>Growth Regions: Erkennt aufstrebende Märkte mit hohem Potenzial und geringer Konkurrenz</span></div>
+          <div class="cap-item"><span class="cap-icon">🧭</span><span>Buyer Behavior: Analysiert regionale Unterschiede in Kaufverhalten, Zahlungsmethoden und Saisonalität</span></div>
+          <div class="cap-item"><span class="cap-icon">🗣️</span><span>Sprache & Kultur: Bewertet Lokalisierungsbedarf und kulturelle Besonderheiten pro Region</span></div>
+          <div class="cap-item"><span class="cap-icon">🎯</span><span>Rollout-Plan: Liefert priorisierten Markteintrittplan mit Entry-Strategie und ROI-Einschätzung</span></div>
+          <div class="cap-item"><span class="cap-icon">🌐</span><span>Mehrsprachig: Antwortet automatisch in der Sprache des Eingabe-Inhalts</span></div>
+        </div>
+
+        <div class="tags">
+          <span class="tag">#regions</span>
+          <span class="tag">#geo-analysis</span>
+          <span class="tag">#market-entry</span>
+          <span class="tag">#demand-signals</span>
+          <span class="tag">#localization</span>
+          <span class="tag">#growth-markets</span>
+          <span class="tag">#buyer-behavior</span>
+          <span class="tag">#rollout-plan</span>
+          <span class="tag">#heatmap</span>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="bubble-footer">
+        <div class="footer-icons">
+          <div class="footer-icon">☰</div>
+          <div class="footer-icon">🙂</div>
+        </div>
+        <div class="ready-badge">
+          <div class="ready-dot"></div>
+          findregions ist bereit
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

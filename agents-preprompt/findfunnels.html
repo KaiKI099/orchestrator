@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>findfunnels – System Prompt</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f0f0f0;
+    --bubble-bg: #ffffff;
+    --accent: #0891b2;
+    --accent-light: #ecfeff;
+    --text: #1a1a2e;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --tag-bg: #ecfeff;
+    --tag-border: #a5f3fc;
+    --tag-text: #0e7490;
+    --icon-bg: #f8fafc;
+  }
+
+  body {
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    font-family: 'Sora', sans-serif;
+  }
+
+  .chat-wrapper {
+    width: 100%;
+    max-width: 680px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .label-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.25rem;
+  }
+
+  .label-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+
+  .label-text {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .bubble-outer {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+  }
+
+  .avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0891b2, #0e7490);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    box-shadow: 0 2px 8px rgba(8,145,178,0.38);
+  }
+
+  .bubble {
+    background: var(--bubble-bg);
+    border-radius: 18px 18px 18px 4px;
+    padding: 1.5rem 1.75rem;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+    flex: 1;
+    animation: slideIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .bubble-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .agent-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #ecfeff, #cffafe);
+    border: 1.5px solid var(--tag-border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem;
+  }
+
+  .agent-meta { flex: 1; }
+
+  .agent-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .agent-tagline {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  .model-badge {
+    background: var(--accent-light);
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 500;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--tag-border);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .bubble-body {
+    font-size: 0.875rem;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  .bubble-body p { margin-bottom: 0.9rem; }
+  strong { font-weight: 600; color: #111; }
+
+  .section-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  /* Funnel pipeline — horizontal flow */
+  .funnel-pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+
+  .pipe-step {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.6rem 0.3rem 0.5rem;
+    position: relative;
+    text-align: center;
+  }
+
+  .pipe-step::after {
+    content: '▶';
+    position: absolute;
+    right: -0.55rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.65rem;
+    color: #cbd5e1;
+    z-index: 2;
+  }
+
+  .pipe-step:last-child::after { display: none; }
+
+  .pipe-bg {
+    width: 100%;
+    border-radius: 10px;
+    padding: 0.55rem 0.4rem;
+    border: 1.5px solid;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+  }
+
+  .pipe-step:nth-child(1) .pipe-bg { background: #ecfeff; border-color: #a5f3fc; }
+  .pipe-step:nth-child(2) .pipe-bg { background: #eff6ff; border-color: #bfdbfe; }
+  .pipe-step:nth-child(3) .pipe-bg { background: #f5f3ff; border-color: #ddd6fe; }
+  .pipe-step:nth-child(4) .pipe-bg { background: #f0fdf4; border-color: #bbf7d0; }
+  .pipe-step:nth-child(5) .pipe-bg { background: #fff7ed; border-color: #fed7aa; }
+
+  .pipe-icon { font-size: 1rem; }
+
+  .pipe-title {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #1a1a2e;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  .pipe-sub {
+    font-size: 0.55rem;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    white-space: nowrap;
+  }
+
+  /* Funnel type cards */
+  .funnel-types {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+    margin: 1rem 0;
+  }
+
+  .ftype-card {
+    border-radius: 10px;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--border);
+    background: #fafafa;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .ftype-icon { font-size: 0.9rem; flex-shrink: 0; }
+
+  .ftype-sub {
+    font-size: 0.62rem;
+    font-weight: 400;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    display: block;
+  }
+
+  /* Prompt block */
+  .prompt-block {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    line-height: 1.65;
+    color: #374151;
+    margin: 0.9rem 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .capabilities {
+    margin: 1.1rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .cap-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    background: #fafafa;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.8rem;
+    color: #374151;
+    line-height: 1.45;
+  }
+
+  .cap-icon { font-size: 0.95rem; flex-shrink: 0; margin-top: 1px; }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1rem;
+  }
+
+  .tag {
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    border: 1px solid var(--tag-border);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    letter-spacing: 0.03em;
+  }
+
+  .bubble-footer {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-icons { display: flex; gap: 0.6rem; }
+
+  .footer-icon {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    background: var(--icon-bg);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .footer-icon:hover { background: var(--accent-light); border-color: var(--tag-border); }
+
+  .ready-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--tag-bg);
+    border: 1px solid var(--tag-border);
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+  }
+
+  .ready-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.5s infinite;
+  }
+</style>
+</head>
+<body>
+
+<div class="chat-wrapper">
+
+  <div class="label-row">
+    <div class="label-dot"></div>
+    <span class="label-text">Subagent Configuration</span>
+  </div>
+
+  <div class="bubble-outer">
+    <div class="avatar">FF</div>
+
+    <div class="bubble">
+
+      <!-- Header -->
+      <div class="bubble-header">
+        <div class="agent-icon">🌊</div>
+        <div class="agent-meta">
+          <div class="agent-name">findfunnels</div>
+          <div class="agent-tagline">Sales Funnel Intelligence Specialist · Subagent</div>
+        </div>
+        <div class="model-badge">claude-opus-4.6</div>
+      </div>
+
+      <!-- Body -->
+      <div class="bubble-body">
+
+        <p>Erstelle einen neuen Subagenten namens <strong>findfunnels</strong> und mach ihn zu meinem dedizierten Sales-Funnel-Analysten. Setze <strong>openrouter/anthropic/claude-opus-4.6</strong> als primäres Modell.</p>
+
+        <span class="section-label">Funnel Stage Pipeline</span>
+        <div class="funnel-pipeline">
+          <div class="pipe-step">
+            <div class="pipe-bg">
+              <span class="pipe-icon">👀</span>
+              <span class="pipe-title">Awareness</span>
+              <span class="pipe-sub">traffic source</span>
+            </div>
+          </div>
+          <div class="pipe-step">
+            <div class="pipe-bg">
+              <span class="pipe-icon">🎣</span>
+              <span class="pipe-title">Hook</span>
+              <span class="pipe-sub">lead magnet</span>
+            </div>
+          </div>
+          <div class="pipe-step">
+            <div class="pipe-bg">
+              <span class="pipe-icon">🤝</span>
+              <span class="pipe-title">Nurture</span>
+              <span class="pipe-sub">trust building</span>
+            </div>
+          </div>
+          <div class="pipe-step">
+            <div class="pipe-bg">
+              <span class="pipe-icon">💳</span>
+              <span class="pipe-title">Convert</span>
+              <span class="pipe-sub">offer & CTA</span>
+            </div>
+          </div>
+          <div class="pipe-step">
+            <div class="pipe-bg">
+              <span class="pipe-icon">🔁</span>
+              <span class="pipe-title">Retain</span>
+              <span class="pipe-sub">upsell & LTV</span>
+            </div>
+          </div>
+        </div>
+
+        <span class="section-label">Funnel Types Analysed</span>
+        <div class="funnel-types">
+          <div class="ftype-card">
+            <span class="ftype-icon">📧</span>
+            <div>Email Funnel<span class="ftype-sub">opt-in → sequence → offer</span></div>
+          </div>
+          <div class="ftype-card">
+            <span class="ftype-icon">📄</span>
+            <div>VSL / Landing Page<span class="ftype-sub">hook → story → CTA</span></div>
+          </div>
+          <div class="ftype-card">
+            <span class="ftype-icon">🛒</span>
+            <div>eCommerce Funnel<span class="ftype-sub">PDP → cart → upsell</span></div>
+          </div>
+          <div class="ftype-card">
+            <span class="ftype-icon">📅</span>
+            <div>Webinar / Call Funnel<span class="ftype-sub">register → show → close</span></div>
+          </div>
+          <div class="ftype-card">
+            <span class="ftype-icon">🎁</span>
+            <div>Free + Shipping<span class="ftype-sub">free offer → backend</span></div>
+          </div>
+          <div class="ftype-card">
+            <span class="ftype-icon">📱</span>
+            <div>Social → DM Funnel<span class="ftype-sub">content → dm → close</span></div>
+          </div>
+        </div>
+
+        <span class="section-label">System Prompt</span>
+        <div class="prompt-block">You are findfunnels, a specialist in sales funnel intelligence.
+
+Your sole purpose is to identify, reverse-engineer, and recommend 
+the highest-converting sales funnels and strategies for any given 
+website URL or product — with deep analysis of what is actively 
+working in the market right now.
+
+CORE TASKS:
+- Analyze the provided URL or product niche thoroughly
+- Identify which funnel types are actively used by top performers
+- Reverse-engineer competitor funnels stage by stage
+- Detect the hooks, offers, CTAs and psychological triggers used
+- Map the full customer journey from first touch to purchase
+- Recommend the optimal funnel blueprint for the input business
+
+OUTPUT FORMAT:
+
+  [MARKET FUNNEL OVERVIEW]
+  Which funnel types dominate this niche and why:
+  → Funnel type | Used by | Why it converts | Traffic source
+
+  [COMPETITOR FUNNEL BREAKDOWN]
+  Step-by-step reverse engineering of top performing funnels:
+  → Stage | Tactic | Copy angle | Psychological trigger | CTA
+
+  [HOOK & OFFER ANALYSIS]
+  The most effective hooks, lead magnets and offers in this space:
+  → Hook type | Offer format | Perceived value | Conversion role
+
+  [EMAIL & FOLLOW-UP SEQUENCES]
+  Nurture and follow-up patterns observed in winning funnels:
+  → Sequence type | Length | Trigger | Key message per step
+
+  [UPSELL & RETENTION MECHANICS]
+  Post-purchase strategies maximizing LTV and repeat buys:
+  → Upsell type | Timing | Price point | Acceptance rate signal
+
+  [RECOMMENDED FUNNEL BLUEPRINT]
+  The ideal funnel structure for this website or product:
+  → Stage-by-stage plan with tools, copy direction & KPI targets
+
+  [QUICK WIN FUNNEL ACTIONS]
+  Top 3 funnel improvements implementable within 1 week
+
+SCORING PER FUNNEL PATTERN:
+  → Conversion Potential : High / Medium / Low
+  → Implementation Ease  : Easy / Medium / Complex
+  → Traffic Dependency   : Paid / Organic / Both
+  → Funnel Length        : Short (1–3 steps) / Mid / Long
+
+RULES:
+- Always reverse-engineer real, observable funnel patterns
+- Prioritize proven, active funnels over theoretical models
+- Cover the full funnel: awareness → hook → nurture → convert → retain
+- Always include psychological triggers per stage
+  (scarcity, social proof, authority, reciprocity, urgency)
+- Minimum 5 competitor funnels analyzed per output
+- Always include a Recommended Funnel Blueprint section
+- Ask for clarification only if no URL or product is provided
+- Respond in the same language as the input content</div>
+
+        <span class="section-label">Fähigkeiten</span>
+        <div class="capabilities">
+          <div class="cap-item"><span class="cap-icon">🔍</span><span>Funnel Reverse Engineering: Zerlegt aktive Competitor-Funnels Schritt für Schritt mit Hooks, CTAs und Triggern</span></div>
+          <div class="cap-item"><span class="cap-icon">🎣</span><span>Hook & Offer Analyse: Erkennt die wirkungsvollsten Lead Magnets und Angebote im jeweiligen Markt</span></div>
+          <div class="cap-item"><span class="cap-icon">📧</span><span>E-Mail Sequenz Mapping: Analysiert Nurture- und Follow-up-Sequenzen erfolgreicher Funnels</span></div>
+          <div class="cap-item"><span class="cap-icon">💰</span><span>Upsell & LTV Strategie: Findet Post-Purchase-Mechaniken zur Maximierung des Kundenwerts</span></div>
+          <div class="cap-item"><span class="cap-icon">🗺️</span><span>Blueprint-Empfehlung: Liefert einen maßgeschneiderten Funnel-Plan mit KPI-Zielen und Tool-Empfehlungen</span></div>
+          <div class="cap-item"><span class="cap-icon">🌍</span><span>Mehrsprachig: Antwortet automatisch in der Sprache des Eingabe-Inhalts</span></div>
+        </div>
+
+        <div class="tags">
+          <span class="tag">#sales-funnel</span>
+          <span class="tag">#conversion</span>
+          <span class="tag">#reverse-engineer</span>
+          <span class="tag">#vsl</span>
+          <span class="tag">#email-sequence</span>
+          <span class="tag">#upsell</span>
+          <span class="tag">#ltv</span>
+          <span class="tag">#hook-analysis</span>
+          <span class="tag">#blueprint</span>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="bubble-footer">
+        <div class="footer-icons">
+          <div class="footer-icon">☰</div>
+          <div class="footer-icon">🙂</div>
+        </div>
+        <div class="ready-badge">
+          <div class="ready-dot"></div>
+          findfunnels ist bereit
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

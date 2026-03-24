@@ -1,0 +1,63 @@
+{
+  "servers": {
+    "memory": {
+      "enabled": true,
+      "command": "/usr/local/bin/npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "description": "Persistent memory storage across conversations",
+      "icon": "🧠"
+    },
+    "filesystem": {
+      "enabled": true,
+      "command": "/usr/local/bin/npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/home/sun/Schreibtisch",
+        "/home/sun/Downloads",
+        "/home/sun/Bilder",
+        "/home/sun/dev",
+        "/home/sun/www",
+        "/home/sun/Dokumente",
+        "/home/sun/share"
+      ],
+      "description": "Read & write files in allowed directories",
+      "icon": "📁"
+    },
+    "github": {
+      "enabled": false,
+      "command": "/usr/local/bin/npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your_github_token_here"
+      },
+      "description": "GitHub repos, issues & pull requests",
+      "icon": "🐙"
+    },
+    "desktop-commander": {
+      "enabled": true,
+      "command": "/usr/local/bin/npx",
+      "args": [
+        "@wonderwhy-er/desktop-commander@latest"
+      ],
+      "description": "Control desktop apps and run shell commands",
+      "icon": "🖥️"
+    },
+    "sequential-thinking": {
+      "enabled": false,
+      "command": "/usr/local/bin/npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "description": "Step-by-step structured reasoning",
+      "icon": "🔢"
+    }
+  }
+}

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>findcompetitors – System Prompt</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f0f0f0;
+    --bubble-bg: #ffffff;
+    --accent: #dc2626;
+    --accent-light: #fee2e2;
+    --text: #1a1a2e;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --tag-bg: #fff7f7;
+    --tag-border: #fecaca;
+    --tag-text: #b91c1c;
+    --icon-bg: #f8fafc;
+  }
+
+  body {
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    font-family: 'Sora', sans-serif;
+  }
+
+  .chat-wrapper {
+    width: 100%;
+    max-width: 680px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .label-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.25rem;
+  }
+
+  .label-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+
+  .label-text {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .bubble-outer {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+  }
+
+  .avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #dc2626, #9f1239);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    box-shadow: 0 2px 8px rgba(220,38,38,0.35);
+  }
+
+  .bubble {
+    background: var(--bubble-bg);
+    border-radius: 18px 18px 18px 4px;
+    padding: 1.5rem 1.75rem;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+    flex: 1;
+    animation: slideIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .bubble-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .agent-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #fff7f7, #fee2e2);
+    border: 1.5px solid var(--tag-border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem;
+  }
+
+  .agent-meta { flex: 1; }
+
+  .agent-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .agent-tagline {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  .model-badge {
+    background: var(--accent-light);
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 500;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--tag-border);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .bubble-body {
+    font-size: 0.875rem;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  .bubble-body p { margin-bottom: 0.9rem; }
+  .bubble-body p:last-of-type { margin-bottom: 0; }
+
+  strong { font-weight: 600; color: #111; }
+
+  .capabilities {
+    margin: 1.1rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .cap-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    background: #fafafa;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.8rem;
+    color: #374151;
+    line-height: 1.45;
+  }
+
+  .cap-icon {
+    font-size: 0.95rem;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1rem;
+  }
+
+  .tag {
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    border: 1px solid var(--tag-border);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    letter-spacing: 0.03em;
+  }
+
+  .bubble-footer {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-icons { display: flex; gap: 0.6rem; }
+
+  .footer-icon {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    background: var(--icon-bg);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .footer-icon:hover { background: var(--accent-light); border-color: var(--tag-border); }
+
+  .ready-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--tag-bg);
+    border: 1px solid var(--tag-border);
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+  }
+
+  .ready-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.5s infinite;
+  }
+
+  .prompt-block {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    line-height: 1.65;
+    color: #374151;
+    margin: 0.9rem 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .section-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  /* Tier ladder visual */
+  .tier-ladder {
+    margin: 1rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .tier-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: 1px solid;
+  }
+
+  .tier-row.t1 {
+    background: #fff1f2;
+    border-color: #fecdd3;
+    color: #9f1239;
+  }
+  .tier-row.t2 {
+    background: #fff7ed;
+    border-color: #fed7aa;
+    color: #c2410c;
+    margin-left: 1.25rem;
+  }
+  .tier-row.t3 {
+    background: #fefce8;
+    border-color: #fde68a;
+    color: #92400e;
+    margin-left: 2.5rem;
+  }
+
+  .tier-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    opacity: 0.7;
+    font-weight: 500;
+    margin-left: auto;
+  }
+</style>
+</head>
+<body>
+
+<div class="chat-wrapper">
+
+  <div class="label-row">
+    <div class="label-dot"></div>
+    <span class="label-text">Subagent Configuration</span>
+  </div>
+
+  <div class="bubble-outer">
+    <div class="avatar">FC</div>
+
+    <div class="bubble">
+
+      <div class="bubble-header">
+        <div class="agent-icon">🎯</div>
+        <div class="agent-meta">
+          <div class="agent-name">findcompetitors</div>
+          <div class="agent-tagline">Competitor Intelligence Specialist · Subagent</div>
+        </div>
+        <div class="model-badge">claude-opus-4.6</div>
+      </div>
+
+      <div class="bubble-body">
+
+        <p>Erstelle einen neuen Subagenten namens <strong>findcompetitors</strong> und mach ihn zu meinem dedizierten Wettbewerbs-Analysten. Setze <strong>openrouter/anthropic/claude-opus-4.6</strong> als primäres Modell.</p>
+
+        <span class="section-label">Competitor Tier Structure</span>
+        <div class="tier-ladder">
+          <div class="tier-row t1">🏢 Tier 1 — Market Leaders &amp; Enterprise Giants <span class="tier-label">HIGH LEVEL</span></div>
+          <div class="tier-row t2">🏬 Tier 2 — Established Mid-Market Players <span class="tier-label">MID LEVEL</span></div>
+          <div class="tier-row t3">🏪 Tier 3 — Niche &amp; Emerging Competitors <span class="tier-label">LOW LEVEL</span></div>
+        </div>
+
+        <span class="section-label">System Prompt</span>
+        <div class="prompt-block">You are findcompetitors, a specialist in competitor intelligence.
+
+Your sole purpose is to identify and analyze the most relevant 
+competitors for any given website URL or product description — 
+from dominant market leaders down to niche low-level players.
+
+CORE TASKS:
+- Analyze the provided URL or product thoroughly
+- Map the full competitive landscape across all market tiers
+- Identify direct, indirect, and emerging competitors
+- Assess competitor positioning, strengths, and market focus
+- Surface overlooked niche players that threaten market share
+
+OUTPUT FORMAT:
+Structure your analysis in three tiers:
+
+  [TIER 1 – MARKET LEADERS]
+  Large-scale, high-authority companies dominating the space.
+  → Company name, URL, market position, core strength
+
+  [TIER 2 – MID-MARKET PLAYERS]
+  Established competitors with significant but narrower reach.
+  → Company name, URL, differentiator, target segment
+
+  [TIER 3 – NICHE & EMERGING]
+  Smaller, specialized, or fast-growing low-level competitors.
+  → Company name, URL, niche focus, growth signal
+
+ADDITIONAL ANALYSIS:
+  [COMPETITIVE GAPS]   – Underserved segments or weaknesses found
+  [MARKET POSITIONING] – Where the input brand sits vs. competitors
+  [WATCH LIST]         – Up-and-coming threats to monitor closely
+
+RULES:
+- Always cover all three tiers — never skip low-level competitors
+- Minimum 5 competitors per tier
+- Include domain URLs where possible
+- Be objective; base analysis on observable market signals
+- Ask for clarification only if no URL or product is provided
+- Respond in the same language as the input content</div>
+
+        <span class="section-label">Fähigkeiten</span>
+        <div class="capabilities">
+          <div class="cap-item"><span class="cap-icon">🏆</span><span>Marktführer-Analyse: Identifiziert dominante Enterprise-Wettbewerber mit Marktpositionierung</span></div>
+          <div class="cap-item"><span class="cap-icon">🔎</span><span>Nischen-Erkennung: Findet oft übersehene Low-Level-Konkurrenten mit Wachstumspotenzial</span></div>
+          <div class="cap-item"><span class="cap-icon">📊</span><span>Gap-Analyse: Erkennt unbesetzte Marktsegmente und Schwächen der Konkurrenz</span></div>
+          <div class="cap-item"><span class="cap-icon">🌍</span><span>Mehrsprachig: Antwortet automatisch in der Sprache des Eingabe-Inhalts</span></div>
+        </div>
+
+        <div class="tags">
+          <span class="tag">#competitors</span>
+          <span class="tag">#market-leaders</span>
+          <span class="tag">#niche-players</span>
+          <span class="tag">#tier-analysis</span>
+          <span class="tag">#positioning</span>
+          <span class="tag">#gap-analysis</span>
+          <span class="tag">#watch-list</span>
+          <span class="tag">#intelligence</span>
+        </div>
+
+      </div>
+
+      <div class="bubble-footer">
+        <div class="footer-icons">
+          <div class="footer-icon">☰</div>
+          <div class="footer-icon">🙂</div>
+        </div>
+        <div class="ready-badge">
+          <div class="ready-dot"></div>
+          findcompetitors ist bereit
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

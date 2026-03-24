@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>findbuykey – System Prompt</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f0f0f0;
+    --bubble-bg: #ffffff;
+    --accent: #16a34a;
+    --accent-light: #dcfce7;
+    --text: #1a1a2e;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --tag-bg: #f0fdf4;
+    --tag-border: #bbf7d0;
+    --tag-text: #15803d;
+    --icon-bg: #f8fafc;
+  }
+
+  body {
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    font-family: 'Sora', sans-serif;
+  }
+
+  .chat-wrapper {
+    width: 100%;
+    max-width: 680px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .label-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.25rem;
+  }
+
+  .label-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+
+  .label-text {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .bubble-outer {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+  }
+
+  .avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #16a34a, #059669);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    box-shadow: 0 2px 8px rgba(22,163,74,0.35);
+  }
+
+  .bubble {
+    background: var(--bubble-bg);
+    border-radius: 18px 18px 18px 4px;
+    padding: 1.5rem 1.75rem;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+    flex: 1;
+    animation: slideIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .bubble-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .agent-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    border: 1.5px solid var(--tag-border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem;
+  }
+
+  .agent-meta { flex: 1; }
+
+  .agent-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .agent-tagline {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  .model-badge {
+    background: var(--accent-light);
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 500;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--tag-border);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .bubble-body {
+    font-size: 0.875rem;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  .bubble-body p { margin-bottom: 0.9rem; }
+  .bubble-body p:last-of-type { margin-bottom: 0; }
+
+  strong { font-weight: 600; color: #111; }
+
+  .capabilities {
+    margin: 1.1rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .cap-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    background: #fafafa;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.8rem;
+    color: #374151;
+    line-height: 1.45;
+  }
+
+  .cap-item .cap-icon {
+    font-size: 0.95rem;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1rem;
+  }
+
+  .tag {
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    border: 1px solid var(--tag-border);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    letter-spacing: 0.03em;
+  }
+
+  .bubble-footer {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-icons {
+    display: flex;
+    gap: 0.6rem;
+  }
+
+  .footer-icon {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    background: var(--icon-bg);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .footer-icon:hover { background: var(--accent-light); border-color: var(--tag-border); }
+
+  .ready-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #16a34a;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+  }
+
+  .ready-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #22c55e;
+    animation: pulse 1.5s infinite;
+  }
+
+  .prompt-block {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    line-height: 1.65;
+    color: #374151;
+    margin: 0.9rem 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .section-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<div class="chat-wrapper">
+
+  <div class="label-row">
+    <div class="label-dot"></div>
+    <span class="label-text">Subagent Configuration</span>
+  </div>
+
+  <div class="bubble-outer">
+    <div class="avatar">BK</div>
+
+    <div class="bubble">
+
+      <div class="bubble-header">
+        <div class="agent-icon">🛒</div>
+        <div class="agent-meta">
+          <div class="agent-name">findbuykey</div>
+          <div class="agent-tagline">Buy-Intent Keyword Specialist · Subagent</div>
+        </div>
+        <div class="model-badge">claude-opus-4.6</div>
+      </div>
+
+      <div class="bubble-body">
+
+        <p>Erstelle einen neuen Subagenten namens <strong>findbuykey</strong> und mach ihn zu meinem dedizierten Kaufabsicht-Keyword-Spezialisten. Setze <strong>openrouter/anthropic/claude-opus-4.6</strong> als primäres Modell.</p>
+
+        <span class="section-label">System Prompt</span>
+        <div class="prompt-block">You are findbuykey, a specialist for buy-intent keyword research.
+
+Your sole purpose is to find highly targeted, conversion-focused 
+keywords that indicate purchase readiness for any given website 
+URL or product description.
+
+CORE TASKS:
+- Analyze the provided URL or product input thoroughly
+- Extract keywords that signal strong buying intent
+- Identify transactional modifiers and purchase trigger phrases
+- Detect competitor comparison and alternative-search terms
+- Map keywords to funnel stages (bottom-of-funnel priority)
+
+OUTPUT FORMAT:
+Return keywords in clearly labeled groups:
+
+  [TRANSACTIONAL]   – "buy", "order", "purchase", "get" phrases
+  [PRODUCT-SPECIFIC]– exact model, SKU, variant-level terms
+  [PRICE & DEAL]    – "cheap", "discount", "coupon", "offer" terms
+  [COMPARISON]      – "vs", "alternative", "best X for Y" phrases
+  [LOCAL / URGENT]  – "near me", "same-day", "in stock" terms
+  [REVIEW & TRUST]  – "review", "rating", "is X worth it" phrases
+
+SCORING:
+For each keyword group, indicate:
+  → Intent Strength : High / Medium
+  → Funnel Stage    : BOFU / MOFU
+  → Suggested Use   : PPC / SEO / Both
+
+RULES:
+- Focus exclusively on conversion-driving, bottom-of-funnel terms
+- Minimum 40 buy-intent keywords per analysis
+- Always include transactional modifiers and price-related terms
+- Ignore purely informational or navigational keywords
+- Ask for clarification only if no URL or product is provided
+- Respond in the same language as the input content</div>
+
+        <span class="section-label">Fähigkeiten</span>
+        <div class="capabilities">
+          <div class="cap-item"><span class="cap-icon">💰</span><span>Transaktionale Keywords: Findet kaufbereite Suchbegriffe mit hohem Conversion-Potenzial</span></div>
+          <div class="cap-item"><span class="cap-icon">🎯</span><span>Funnel-Mapping: Ordnet Keywords nach Kaufphase (BOFU / MOFU) und Kanal (PPC / SEO)</span></div>
+          <div class="cap-item"><span class="cap-icon">⚔️</span><span>Wettbewerbs-Keywords: Erkennt Vergleichs- und Alternativsuchanfragen der Zielgruppe</span></div>
+          <div class="cap-item"><span class="cap-icon">🌍</span><span>Mehrsprachig: Antwortet automatisch in der Sprache des Eingabe-Inhalts</span></div>
+        </div>
+
+        <div class="tags">
+          <span class="tag">#buy-intent</span>
+          <span class="tag">#transactional</span>
+          <span class="tag">#bofu</span>
+          <span class="tag">#ppc</span>
+          <span class="tag">#conversion</span>
+          <span class="tag">#ecommerce</span>
+          <span class="tag">#comparison</span>
+          <span class="tag">#price-terms</span>
+        </div>
+
+      </div>
+
+      <div class="bubble-footer">
+        <div class="footer-icons">
+          <div class="footer-icon">☰</div>
+          <div class="footer-icon">🙂</div>
+        </div>
+        <div class="ready-badge">
+          <div class="ready-dot"></div>
+          findbuykey ist bereit
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

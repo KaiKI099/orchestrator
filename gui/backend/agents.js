@@ -1,7 +1,12 @@
+// model: set to a specific model ID (e.g. 'qwen2.5:32b-instruct-q4_K_M') to pin
+//        this agent to a fixed model. null = use the globally selected model.
+// backend: set to 'ollama' or 'lmstudio' to pin to a backend. null = global.
 export const AGENTS = {
   findkey: {
     name: 'findkey',
     emoji: '🔍',
+    model: null,
+    backend: null,
     description: 'Broad keyword research — extracts primary, secondary, long-tail, LSI and intent-based keywords.',
     triggers: ['keyword', 'keywords', 'seo keyword', 'search term', 'long-tail', 'lsi', 'findkey'],
     system_prompt: `You are findkey, a dedicated keyword research specialist.
@@ -26,6 +31,8 @@ RULES: Minimum 40 keywords. Respond in the same language as the input.`
   findbuykey: {
     name: 'findbuykey',
     emoji: '🛒',
+    model: null,
+    backend: null,
     description: 'Buy-intent keyword specialist — finds transactional, conversion-focused keywords.',
     triggers: ['buy intent', 'purchase keyword', 'transactional', 'bofu', 'conversion keyword', 'findbuykey'],
     system_prompt: `You are findbuykey, a specialist for buy-intent keyword research.
@@ -45,6 +52,8 @@ RULES: Minimum 40 keywords. Respond in the same language as the input.`
   findadwords: {
     name: 'findadwords',
     emoji: '📢',
+    model: null,
+    backend: null,
     description: 'Google Ads intelligence — keywords with CPC estimates, competitor ads, funnel analysis.',
     triggers: ['google ads', 'adwords', 'cpc', 'ppc', 'paid search', 'ad campaign', 'findadwords'],
     system_prompt: `You are findadwords, a specialist in Google Ads intelligence.
@@ -62,6 +71,8 @@ RULES: Minimum 30 keywords. Always include negative keywords. Respond in same la
   findbacklinks: {
     name: 'findbacklinks',
     emoji: '🔗',
+    model: null,
+    backend: null,
     description: 'Backlink opportunity research — forums, blogs, directories and PR link placements.',
     triggers: ['backlink', 'link building', 'dofollow', 'guest post', 'forum link', 'findbacklinks'],
     system_prompt: `You are findbacklinks, a specialist in backlink opportunity research.
@@ -79,6 +90,8 @@ RULES: Minimum 30 opportunities. At least 10 forum/community. Respond in same la
   findcompetitors: {
     name: 'findcompetitors',
     emoji: '🎯',
+    model: null,
+    backend: null,
     description: 'Competitor intelligence — maps full competitive landscape across all market tiers.',
     triggers: ['competitor', 'competition', 'rival', 'market leader', 'competitive landscape', 'findcompetitors'],
     system_prompt: `You are findcompetitors, a specialist in competitor intelligence.
@@ -97,6 +110,8 @@ RULES: Minimum 5 competitors per tier. Include domain URLs. Respond in same lang
   findcritics: {
     name: 'findcritics',
     emoji: '🔬',
+    model: null,
+    backend: null,
     description: 'Quality control — reviews agent outputs, identifies gaps, gives PASS/REVISE/REDO verdicts.',
     triggers: ['review output', 'review this', 'critique', 'quality check', 'check response', 'findcritics', 'rate this output', 'review this response'],
     system_prompt: `You are findcritics, a specialist in agent response quality analysis.
@@ -121,6 +136,8 @@ RULES: Every issue MUST include a concrete fix. Never rewrite — instruct. Resp
   findfunnels: {
     name: 'findfunnels',
     emoji: '🌊',
+    model: null,
+    backend: null,
     description: 'Sales funnel intelligence — reverse-engineers funnels, hooks, CTAs and recommends blueprints.',
     triggers: ['funnel', 'sales funnel', 'landing page', 'cta', 'upsell', 'lead magnet', 'email sequence', 'findfunnels'],
     system_prompt: `You are findfunnels, a specialist in sales funnel intelligence.
@@ -140,6 +157,8 @@ RULES: Minimum 5 competitor funnels. Include psychological triggers. Respond in 
   findideas: {
     name: 'findideas',
     emoji: '💡',
+    model: null,
+    backend: null,
     description: 'Marketing idea generator — actionable promotion concepts across all channels.',
     triggers: ['marketing idea', 'promotion', 'campaign', 'ad idea', 'content idea', 'strategy', 'findideas'],
     system_prompt: `You are findideas, a specialist in creative marketing promotion strategy.
@@ -161,6 +180,8 @@ RULES: Lead with competitor intel. Cover minimum 3 channels. Include 90-day road
   findregions: {
     name: 'findregions',
     emoji: '🌍',
+    model: null,
+    backend: null,
     description: 'Regional sales intelligence — best geographic markets, demand signals, rollout plans.',
     triggers: ['region', 'country', 'countries', 'market entry', 'geographic', 'localization', 'where to sell', 'target region', 'findregions'],
     system_prompt: `You are findregions, a specialist in regional sales intelligence.
@@ -180,6 +201,8 @@ RULES: Minimum 10 regions. At least 2 underserved opportunity regions. Respond i
   finddev: {
     name: 'finddev',
     emoji: '⚡',
+    model: null,
+    backend: null,
     description: 'Node.js development specialist — production-grade code, architecture, debugging, optimization.',
     triggers: ['node', 'nodejs', 'javascript', 'typescript', 'express', 'api', 'backend', 'server', 'rest', 'graphql', 'database', 'mongodb', 'postgres', 'redis', 'code', 'function', 'module', 'npm', 'package', 'debug', 'error', 'fix', 'implement', 'refactor', 'finddev'],
     system_prompt: `You are finddev, an elite Node.js development specialist.

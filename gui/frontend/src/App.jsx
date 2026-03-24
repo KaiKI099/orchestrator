@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, Settings, Square, Download, Trash2, Copy, Check, ChevronDown } from 'lucide-react';
+import { Send, Settings, Square, Download, Trash2, Copy, Check, ChevronDown, Loader } from 'lucide-react';
 import McpSettings from './McpSettings';
 import ModelSelector from './ModelSelector';
 
@@ -180,7 +180,7 @@ export default function App() {
       let assistantContent = '';
       let buffer = '';
 
-      setMessages(prev => [...prev, { role: 'assistant', content: '', isTyping: true, toolCalls: [] }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: '', isTyping: true, toolCalls: [], delegations: [] }]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -208,18 +208,76 @@ export default function App() {
               const parsed = JSON.parse(payload);
 
               if (currentEvent === 'agent') {
+                // Initial routing event — which agent/orchestrator is handling this
                 setMessages(prev => {
                   const next = [...prev];
                   next[next.length - 1] = { ...next[next.length - 1], agent: parsed };
                   return next;
                 });
-              } else if (currentEvent === 'tool') {
+
+              } else if (currentEvent === 'delegating') {
+                // Orchestrator dispatched a sub-agent (queued or running immediately)
                 setMessages(prev => {
                   const next = [...prev];
                   const last = next[next.length - 1];
-                  next[next.length - 1] = { ...last, toolCalls: [...(last.toolCalls || []), parsed] };
+                  const entry = {
+                    agent_id: parsed.agent_id,
+                    name:     parsed.name,
+                    emoji:    parsed.emoji,
+                    model:    parsed.model,
+                    backend:  parsed.backend,
+                    status:   parsed.queued ? 'queued' : 'running',
+                  };
+                  next[next.length - 1] = {
+                    ...last,
+                    delegations: [...(last.delegations || []), entry],
+                  };
                   return next;
                 });
+
+              } else if (currentEvent === 'agent_start') {
+                // A queued agent just got the model and started executing
+                setMessages(prev => {
+                  const next = [...prev];
+                  const last = next[next.length - 1];
+                  next[next.length - 1] = {
+                    ...last,
+                    delegations: (last.delegations || []).map(d =>
+                      d.agent_id === parsed.agent_id && d.status === 'queued'
+                        ? { ...d, status: 'running' }
+                        : d
+                    ),
+                  };
+                  return next;
+                });
+
+              } else if (currentEvent === 'agent_done') {
+                // Sub-agent finished — record duration
+                setMessages(prev => {
+                  const next = [...prev];
+                  const last = next[next.length - 1];
+                  next[next.length - 1] = {
+                    ...last,
+                    delegations: (last.delegations || []).map(d =>
+                      d.agent_id === parsed.agent_id && d.status === 'running'
+                        ? { ...d, status: 'done', duration_ms: parsed.duration_ms }
+                        : d
+                    ),
+                  };
+                  return next;
+                });
+
+              } else if (currentEvent === 'tool') {
+                // Only show top-level tool calls (sub-agent tools carry an agent_id — skip them)
+                if (!parsed.agent_id) {
+                  setMessages(prev => {
+                    const next = [...prev];
+                    const last = next[next.length - 1];
+                    next[next.length - 1] = { ...last, toolCalls: [...(last.toolCalls || []), parsed] };
+                    return next;
+                  });
+                }
+
               } else if (parsed.choices?.[0]?.delta?.content) {
                 assistantContent += parsed.choices[0].delta.content;
                 setMessages(prev => {
@@ -227,6 +285,7 @@ export default function App() {
                   next[next.length - 1] = { ...next[next.length - 1], content: assistantContent, isTyping: false };
                   return next;
                 });
+
               } else if (parsed.emoji !== undefined || parsed.id === 'orchestrator') {
                 setMessages(prev => {
                   const next = [...prev];
@@ -332,6 +391,29 @@ export default function App() {
                   <span className="emoji">{msg.agent?.emoji ?? '🤖'}</span>
                   <span>{msg.agent ? `routing to ${msg.agent.name}` : 'Orchestrator'}</span>
                   {msg.stopped && <span className="stopped-badge">■ stopped</span>}
+                </div>
+              )}
+
+              {/* Delegation timeline — shown when orchestrator dispatches sub-agents */}
+              {msg.delegations?.length > 0 && (
+                <div className="delegation-timeline">
+                  {msg.delegations.map((d, i) => (
+                    <div key={i} className={`delegation-item delegation-item--${d.status}`}>
+                      <span className="delegation-arrow">→</span>
+                      <span className="delegation-emoji">{d.emoji}</span>
+                      <span className="delegation-name">{d.name}</span>
+                      {d.model && (
+                        <span className="delegation-model">
+                          {d.model.split('/').pop().split(':')[0]}
+                        </span>
+                      )}
+                      <span className="delegation-status">
+                        {d.status === 'queued'  && '⏳ queued'}
+                        {d.status === 'running' && <><Loader size={11} className="mcp-spin" /> running…</>}
+                        {d.status === 'done'    && `✓ ${(d.duration_ms / 1000).toFixed(1)}s`}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
 

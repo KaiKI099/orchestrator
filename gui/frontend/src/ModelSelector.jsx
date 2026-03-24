@@ -48,6 +48,12 @@ export default function ModelSelector({ onClose }) {
   const isActive = (backendKey, modelId) =>
     data?.active.backend === backendKey && data?.active.model === modelId;
 
+  function fmtCtx(n) {
+    if (!n) return null;
+    if (n >= 1_000_000) return `${Math.round(n / 1_000_000)}M ctx`;
+    return `${Math.round(n / 1024)}K ctx`;
+  }
+
   return (
     <div className="mcp-overlay" onClick={() => onClose(data?.active)}>
       <div className="mcp-panel model-panel" onClick={e => e.stopPropagation()}>
@@ -106,18 +112,19 @@ export default function ModelSelector({ onClose }) {
 
               {backend.online && (
                 <div className="model-list-scroll">
-                  {backend.models.map(modelId => {
-                    const active = isActive(key, modelId);
-                    const busy = selecting === `${key}/${modelId}`;
+                  {backend.models.map(({ id, contextLength }) => {
+                    const active = isActive(key, id);
+                    const busy = selecting === `${key}/${id}`;
                     return (
                       <button
-                        key={modelId}
+                        key={id}
                         className={`model-item ${active ? 'model-item--active' : ''}`}
-                        onClick={() => selectModel(key, modelId)}
+                        onClick={() => selectModel(key, id)}
                         disabled={!!selecting}
                       >
-                        <span className="model-item-name">{modelId}</span>
+                        <span className="model-item-name">{id}</span>
                         <span className="model-item-right">
+                          {contextLength && <span className="model-ctx-badge">{fmtCtx(contextLength)}</span>}
                           {busy && <Loader size={12} className="mcp-spin" />}
                           {active && !busy && <Check size={13} style={{ color: '#4ade80' }} />}
                         </span>

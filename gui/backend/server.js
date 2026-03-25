@@ -9,6 +9,7 @@ import express from 'express';
 import cors from 'cors';
 import { AGENTS } from './agents.js';
 import { ModelQueue } from './job-queue.js';
+import { isVisionModelByName, checkOllamaVisionCapability, describeImage } from './vision-utils.js';
 import {
   initialize as mcpInitialize,
   ensureRunning as mcpEnsureRunning,
@@ -20,7 +21,7 @@ import {
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '20mb' })); // allow base64-encoded image payloads
 
 const PORT = 3001;
 const TEMPERATURE           = parseFloat(process.env.TEMPERATURE || "0.7");
@@ -325,11 +326,63 @@ app.post('/api/mcp/toggle/:name', async (req, res) => {
   }
 });
 
+// ── Vision API ────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/vision-check
+ * Returns whether the currently active model supports vision input.
+ * Uses Ollama /api/show capabilities when available; falls back to name patterns.
+ */
+app.get('/api/vision-check', async (_req, res) => {
+  const backendKey = activeBackend;
+  const model      = await resolveBackendModel(backendKey, null);
+
+  let isVision = false;
+  if (backendKey === 'ollama') {
+    const nativeBase = BACKENDS.ollama.url.replace(/\/v1\/?$/, '');
+    const fromApi = await checkOllamaVisionCapability(nativeBase, model);
+    isVision = fromApi !== null ? fromApi : isVisionModelByName(model);
+  } else {
+    isVision = isVisionModelByName(model);
+  }
+
+  res.json({ model, backend: backendKey, isVision, describeModel: 'adelnazmy2002/Qwen3-VL-8B-Instruct' });
+});
+
+/**
+ * POST /api/describe-image
+ * Body: { base64: string, mimeType: string, describeModel?: string }
+ * Sends the image to Qwen3vision on Ollama and returns a text description.
+ * Used when the active model is not vision-capable.
+ */
+app.post('/api/describe-image', async (req, res) => {
+  const { base64, mimeType, describeModel } = req.body;
+  if (!base64 || !mimeType) {
+    return res.status(400).json({ error: 'base64 and mimeType are required' });
+  }
+  try {
+    const description = await describeImage({
+      base64,
+      mimeType,
+      ollamaV1Url:  BACKENDS.ollama.url,
+      describeModel: describeModel || 'adelnazmy2002/Qwen3-VL-8B-Instruct',
+    });
+    res.json({ description });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Chat API ──────────────────────────────────────────────────────────────────
 
 app.post('/api/chat', async (req, res) => {
   const { messages, useAgent } = req.body;
-  const lastUserMessage = messages[messages.length - 1]?.content || '';
+  // content may be a string OR a multi-part array (e.g. vision messages).
+  // Extract only the text parts so detectAgent() always receives a plain string.
+  const rawContent = messages[messages.length - 1]?.content ?? '';
+  const lastUserMessage = Array.isArray(rawContent)
+    ? rawContent.filter(p => p.type === 'text').map(p => p.text).join(' ')
+    : String(rawContent);
 
   const agentId = useAgent || detectAgent(lastUserMessage);
   const agent   = agentId && AGENTS[agentId] ? AGENTS[agentId] : null;
@@ -472,7 +525,7 @@ app.post('/api/chat', async (req, res) => {
       orchPrompt += `\n\nAdditional MCP tools (passed through to agents):\n${list}`;
     }
 
-    const loopMessages = [...messages];
+    const loopMessages = messages.slice(-6);
 
     for (let round = 0; round < MAX_ORCH_ROUNDS; round++) {
       const fetchRes = await fetch(`${url}/chat/completions`, {
@@ -530,7 +583,7 @@ app.post('/api/chat', async (req, res) => {
             }
           }
 
-          loopMessages.push({ role: 'tool', tool_call_id: tc.id, content: String(result) });
+          loopMessages.push({ role: 'tool', tool_call_id: tc.id, content: String(result).slice(0, 2000) });
         }
 
       } else {

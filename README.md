@@ -1,6 +1,6 @@
 # 🤖 Orchestrator — Local AI Marketing Agent
 
-A multi-agent marketing research system that routes your questions to 9 specialist AI agents — running entirely on your own hardware via **Ollama** or **LM Studio** Select and start already installed Models on GUI dropdown menu. No cloud, no API keys, no cost per token.
+A multi-agent marketing research system that routes your questions to 9 specialist AI agents — running entirely on your own hardware via **Ollama** or **LM Studio** Select and start already installed Models on GUI dropdown menu. 5 ready installed MCP to switch on and off. No cloud, no API keys, no cost per token.
 
 ![screenshot](https://github.com/user-attachments/assets/placeholder)
 

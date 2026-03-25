@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, Settings, Square, Download, Trash2, Copy, Check, ChevronDown, Loader } from 'lucide-react';
+import { Send, Settings, Square, Download, Trash2, Copy, Check, ChevronDown, Loader, Paperclip, FileText, X as XIcon } from 'lucide-react';
 import McpSettings from './McpSettings';
 import ModelSelector from './ModelSelector';
 
@@ -73,10 +73,14 @@ export default function App() {
   const [activeModelLabel, setActiveModelLabel] = useState('');
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [copiedMsgIdx, setCopiedMsgIdx] = useState(null);
+  const [attachments, setAttachments] = useState([]);   // pending files for current prompt
+  const [isVisionModel, setIsVisionModel] = useState(false);
+  const [describingImage, setDescribingImage] = useState(false);
 
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -98,7 +102,7 @@ export default function App() {
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Load active MCP count + current model on mount
+  // Load active MCP count + current model on mount; also check vision capability
   useEffect(() => {
     fetch('http://localhost:3001/api/mcp')
       .then(r => r.json())
@@ -111,6 +115,10 @@ export default function App() {
         setActiveBackendLabel(backendNames[d.active.backend] ?? d.active.backend);
         setActiveModelLabel(d.active.model || '');
       })
+      .catch(() => {});
+    fetch('http://localhost:3001/api/vision-check')
+      .then(r => r.json())
+      .then(d => setIsVisionModel(d.isVision))
       .catch(() => {});
   }, []);
 
@@ -126,6 +134,11 @@ export default function App() {
       const backendNames = { lmstudio: 'LM Studio', ollama: 'Ollama' };
       setActiveBackendLabel(backendNames[active.backend] ?? active.backend);
       setActiveModelLabel(active.model || '');
+      // Re-check vision capability for the newly selected model
+      fetch('http://localhost:3001/api/vision-check')
+        .then(r => r.json())
+        .then(d => setIsVisionModel(d.isVision))
+        .catch(() => {});
     }
     setShowModelSelector(false);
   }
@@ -151,11 +164,104 @@ export default function App() {
     setTimeout(() => setCopiedMsgIdx(null), 2000);
   }
 
+  // ── File attachment helpers ────────────────────────────────────────────────
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = () => resolve(reader.result.split(',')[1]); // strip data: prefix
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleFileSelect(e) {
+    const files = Array.from(e.target.files);
+    e.target.value = ''; // allow re-selecting the same file
+    for (const file of files) {
+      if (file.size > 20 * 1024 * 1024) { alert(`${file.name} is too large (max 20 MB)`); continue; }
+      const isImage = file.type.startsWith('image/');
+      const isText  = file.type.startsWith('text/') || /\.(md|txt)$/i.test(file.name);
+      if (isImage) {
+        const base64  = await fileToBase64(file);
+        const preview = `data:${file.type};base64,${base64}`;
+        setAttachments(prev => [...prev, { type: 'image', name: file.name, base64, mimeType: file.type, preview }]);
+      } else if (isText) {
+        const content = await file.text();
+        setAttachments(prev => [...prev, { type: 'text', name: file.name, content }]);
+      }
+    }
+  }
+
+  function removeAttachment(idx) {
+    setAttachments(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!inputMessage.trim() || isLoading) return;
+    const hasText = inputMessage.trim().length > 0;
+    if ((!hasText && attachments.length === 0) || isLoading || describingImage) return;
 
-    const userMessage = { role: 'user', content: inputMessage };
+    const pendingAtts = [...attachments];
+    setAttachments([]);
+
+    const imageAtts = pendingAtts.filter(a => a.type === 'image');
+    const textAtts  = pendingAtts.filter(a => a.type === 'text');
+
+    // Build text prefix from uploaded text/md files
+    const textPrefix = textAtts.map(ta =>
+      `[File: ${ta.name}]\n\`\`\`\n${ta.content}\n\`\`\`\n\n`
+    ).join('');
+
+    let userContent;
+
+    if (imageAtts.length > 0) {
+      if (isVisionModel) {
+        // Vision model — send images as multi-part content in one request
+        const parts = [];
+        const combinedText = (textPrefix + inputMessage).trim();
+        if (combinedText) parts.push({ type: 'text', text: combinedText });
+        for (const ia of imageAtts) {
+          parts.push({ type: 'image_url', image_url: { url: `data:${ia.mimeType};base64,${ia.base64}` } });
+        }
+        userContent = parts;
+      } else {
+        // Non-vision model — describe each image via Qwen3vision first (sequential)
+        setDescribingImage(true);
+        try {
+          const descParts = [];
+          for (const ia of imageAtts) {
+            const res = await fetch('http://localhost:3001/api/describe-image', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({ base64: ia.base64, mimeType: ia.mimeType }),
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
+            descParts.push(`[Image: ${ia.name}]\n${data.description}`);
+          }
+          userContent = descParts.join('\n\n') + '\n\n' + textPrefix + inputMessage.trim();
+        } catch (err) {
+          setDescribingImage(false);
+          setAttachments(pendingAtts); // give attachments back on error
+          setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Image description failed: ${err.message}`, isError: true }]);
+          return;
+        }
+        setDescribingImage(false);
+      }
+    } else {
+      userContent = textPrefix + inputMessage.trim();
+    }
+
+    const userMessage = {
+      role:        'user',
+      content:     userContent,               // string or multi-part array (vision)
+      displayText: inputMessage.trim(),        // always plain text for display
+      attachments: pendingAtts.map(a => ({ type: a.type, name: a.name, preview: a.preview })),
+    };
+
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsLoading(true);
@@ -165,10 +271,11 @@ export default function App() {
 
     try {
       const response = await fetch('http://localhost:3001/api/chat', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
+        signal:  controller.signal,
+        body:    JSON.stringify({
+          // content may be string (text) or array (vision) — both are valid OpenAI format
           messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content }))
         })
       });
@@ -427,13 +534,29 @@ export default function App() {
                 </div>
               )}
 
+              {/* Attachment previews (user messages with uploaded files) */}
+              {msg.role === 'user' && msg.attachments?.length > 0 && (
+                <div className="msg-attachments">
+                  {msg.attachments.map((a, i) => (
+                    a.type === 'image'
+                      ? <img key={i} src={a.preview} alt={a.name} className="msg-img-preview" title={a.name} />
+                      : <span key={i} className="msg-file-tag"><FileText size={12} /> {a.name}</span>
+                  ))}
+                </div>
+              )}
+
               {msg.isTyping && !msg.content ? (
                 <div className="typing-indicator">
                   <div className="dot" /><div className="dot" /><div className="dot" />
                 </div>
               ) : (
                 <div className="markdown-wrapper">
-                  <ReactMarkdown components={mdComponents}>{msg.content}</ReactMarkdown>
+                  <ReactMarkdown components={mdComponents}>
+                    {/* For user messages: show displayText (avoids rendering raw base64 arrays) */}
+                    {msg.role === 'user'
+                      ? (msg.displayText ?? (typeof msg.content === 'string' ? msg.content : ''))
+                      : msg.content}
+                  </ReactMarkdown>
                 </div>
               )}
 
@@ -475,20 +598,67 @@ export default function App() {
 
       {/* ── Input ── */}
       <footer className="input-container">
+        {/* Attachment chips (pending files not yet sent) */}
+        {attachments.length > 0 && (
+          <div className="attachment-area">
+            {attachments.map((a, i) => (
+              <div key={i} className={`attachment-chip attachment-chip--${a.type}`}>
+                {a.type === 'image'
+                  ? <img src={a.preview} alt={a.name} className="attachment-thumb" />
+                  : <FileText size={14} />}
+                <span className="attachment-chip-name">{a.name}</span>
+                {!isVisionModel && a.type === 'image' && (
+                  <span className="attachment-chip-hint" title="Will be described by Qwen3vision">👁</span>
+                )}
+                <button className="attachment-chip-remove" onClick={() => removeAttachment(i)} title="Remove">
+                  <XIcon size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="input-box">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,.txt,.md,text/plain,text/markdown"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handleFileSelect}
+          />
+          {/* Upload button */}
+          <button
+            type="button"
+            className="upload-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading || describingImage}
+            title="Attach image or text file"
+          >
+            <Paperclip size={16} />
+          </button>
+
           <input
             type="text"
-            placeholder={isLoading ? 'Generating…' : 'Type your marketing assignment here…'}
+            placeholder={
+              describingImage ? 'Describing image with Qwen3vision…' :
+              isLoading       ? 'Generating…' :
+                                'Type your marketing assignment here…'
+            }
             value={inputMessage}
             onChange={e => setInputMessage(e.target.value)}
-            disabled={isLoading}
+            disabled={isLoading || describingImage}
           />
-          {isLoading ? (
-            <button type="button" className="stop-btn" onClick={handleStop} title="Stop generation">
-              <Square size={16} fill="currentColor" />
+          {isLoading || describingImage ? (
+            <button type="button" className="stop-btn" onClick={handleStop} title="Stop generation"
+              disabled={describingImage}>
+              {describingImage
+                ? <Loader size={16} className="mcp-spin" />
+                : <Square size={16} fill="currentColor" />}
             </button>
           ) : (
-            <button type="submit" disabled={!inputMessage.trim()}>
+            <button type="submit" disabled={!inputMessage.trim() && attachments.length === 0}>
               <Send size={18} />
             </button>
           )}

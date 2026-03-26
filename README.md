@@ -1,6 +1,6 @@
 # 🤖 Orchestrator — Local AI Marketing Agent
 
-A multi-agent marketing research system that routes your questions to 9 specialist AI agents — running entirely on your own hardware via **Ollama** or **LM Studio** Select and start already installed Models on GUI dropdown menu. 5 ready installed MCP to switch on and off. No cloud, no API keys, no cost per token.
+A multi-agent marketing research system that routes your questions to 9 specialist AI agents. Supports local models via **Ollama** or **LM Studio**, plus cloud models via **Anthropic Claude** and **NVIDIA NIM** (Kimi K2.5 and others). Select and start models from the GUI dropdown or use the quick-switch buttons. Editable system prompt — override the orchestrator with your own instructions on the fly. 5 built-in MCP servers to toggle on/off.
 
 ![screenshot](https://github.com/user-attachments/assets/placeholder)
 
@@ -55,8 +55,8 @@ Orchestrator detects intent
     └────────┬─────────┘
              │
     ┌────────▼─────────────────────────┐
-    │   LM Studio  or  Ollama          │  ← your local model
-    │   OpenAI-compatible API          │
+    │   LM Studio / Ollama (local)     │  ← your own hardware
+    │   Claude / NVIDIA NIM (cloud)    │  ← API key required
     └──────────────────────────────────┘
              │  (optional)
     ┌────────▼─────────────────────────┐
@@ -72,9 +72,10 @@ Orchestrator detects intent
 
 ### Prerequisites
 
-- [Ollama](https://ollama.com) **or** [LM Studio](https://lmstudio.ai) running locally
+- [Ollama](https://ollama.com) **or** [LM Studio](https://lmstudio.ai) for local models
 - Node.js 18+
-- Python 3.10+
+- Python 3.10+ (optional, for CLI)
+- **For cloud models:** Anthropic API key and/or NVIDIA NIM API key
 
 ---
 
@@ -102,11 +103,15 @@ Edit `.env`:
 ```env
 LM_STUDIO_URL=http://192.168.x.x:1234/v1   # your LM Studio IP
 OLLAMA_URL=http://localhost:11434/v1
-DEFAULT_BACKEND=ollama                       # ollama | lmstudio
+DEFAULT_BACKEND=ollama                       # ollama | lmstudio | claude | nvidia
 DEFAULT_MODEL=                               # leave blank = auto-detect
 TEMPERATURE=0.7
-MAX_TOKENS=4096
+MAX_TOKENS=32752
 STREAM=true
+
+# Cloud backends (optional — add keys to enable)
+ANTHROPIC_API_KEY=sk-ant-...                 # Anthropic Claude
+NVIDIA_API_KEY=nvapi-...                     # NVIDIA NIM (Kimi K2.5, etc.)
 ```
 
 ---
@@ -200,7 +205,7 @@ The orchestrator can chain agents — e.g. `findcompetitors` → `findideas` for
 | Frontend | React 18, Vite, lucide-react |
 | Backend | Express 5, Node.js ESM |
 | CLI | Python 3, requests |
-| LLM runtime | Ollama / LM Studio (OpenAI-compatible) |
+| LLM runtime | Ollama / LM Studio (local), Claude / NVIDIA NIM (cloud) |
 | Tool protocol | Model Context Protocol (MCP) |
 | Streaming | Server-Sent Events (SSE) |
 
@@ -221,8 +226,9 @@ orchestrator/
 └── gui/
     ├── start.sh             Starts both backend + frontend
     ├── backend/
-    │   ├── server.js        Express API server
+    │   ├── server.js        Express API server (4 backends, custom prompt)
     │   ├── agents.js        Agent definitions (JS)
+    │   ├── vision-utils.js  Image description via Qwen3vision
     │   └── mcp-manager.js   MCP server lifecycle
     └── frontend/
         └── src/

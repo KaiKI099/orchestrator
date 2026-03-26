@@ -162,7 +162,14 @@ body {
   border-top: 1px solid var(--border-color);
 }
 
+.input-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: stretch;
+}
+
 .input-box {
+  flex: 1;
   display: flex;
   gap: 1rem;
   background: var(--bg-secondary);
@@ -211,6 +218,91 @@ body {
   background: var(--text-muted);
   cursor: not-allowed;
   transform: none;
+}
+
+/* ── Prompt config button ─────────────────────────────────────────────────── */
+.prompt-config-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.prompt-config-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--text-main);
+  background: rgba(106, 90, 205, 0.1);
+}
+.prompt-config-btn--active {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background: rgba(106, 90, 205, 0.12);
+  box-shadow: 0 0 8px rgba(106, 90, 205, 0.2);
+}
+
+/* ── Prompt editor modal ─────────────────────────────────────────────────── */
+.prompt-panel { width: 600px; max-height: 80vh; }
+.prompt-editor-body { padding: 0 !important; }
+.prompt-textarea {
+  width: 100%;
+  min-height: 280px;
+  max-height: 50vh;
+  padding: 1rem 1.2rem;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-main);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  resize: vertical;
+}
+.prompt-textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+.prompt-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border-color);
+  gap: 0.75rem;
+}
+.prompt-footer-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.prompt-editor-btn {
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.prompt-editor-btn--save {
+  background: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+.prompt-editor-btn--save:hover { background: #5b4dbb; }
+.prompt-editor-btn--reset {
+  background: transparent;
+  color: var(--text-muted);
+}
+.prompt-editor-btn--reset:hover {
+  color: var(--text-main);
+  border-color: rgba(255,255,255,0.25);
 }
 
 /* ── Markdown ─────────────────────────────────────────────────────────────── */
@@ -545,6 +637,41 @@ body {
 }
 
 /* ── Model selector button ──────────────────────────────────────────────────── */
+/* ── Quick-switch backend buttons ─────────────────────────────────────────── */
+.backend-quick-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.backend-quick-btn:hover {
+  border-color: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.08);
+  color: var(--text-main);
+}
+.backend-quick-btn--active {
+  border-color: var(--accent-color);
+  background: rgba(106, 90, 205, 0.15);
+  color: var(--text-main);
+  box-shadow: 0 0 8px rgba(106, 90, 205, 0.25);
+}
+.backend-quick-btn--active:hover {
+  background: rgba(106, 90, 205, 0.2);
+}
+.backend-quick-icon {
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
 .model-btn {
   display: flex;
   align-items: center;

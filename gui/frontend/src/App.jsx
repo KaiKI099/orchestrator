@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, Settings, Square, Download, Trash2, Copy, Check, ChevronDown, Loader, Paperclip, FileText, X as XIcon } from 'lucide-react';
+import { Send, Settings, Square, Download, Trash2, Copy, Check, ChevronDown, Loader, Paperclip, FileText, X as XIcon, SlidersHorizontal } from 'lucide-react';
 import McpSettings from './McpSettings';
 import ModelSelector from './ModelSelector';
 
@@ -76,6 +76,9 @@ export default function App() {
   const [attachments, setAttachments] = useState([]);   // pending files for current prompt
   const [isVisionModel, setIsVisionModel] = useState(false);
   const [describingImage, setDescribingImage] = useState(false);
+  const [showPromptEditor, setShowPromptEditor] = useState(false);
+  const [customSystemPrompt, setCustomSystemPrompt] = useState('');
+  const [promptDraft, setPromptDraft] = useState('');
 
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
@@ -111,7 +114,7 @@ export default function App() {
     fetch('http://localhost:3001/api/models')
       .then(r => r.json())
       .then(d => {
-        const backendNames = { lmstudio: 'LM Studio', ollama: 'Ollama' };
+        const backendNames = { lmstudio: 'LM Studio', ollama: 'Ollama', claude: 'Claude', nvidia: 'NVIDIA' };
         setActiveBackendLabel(backendNames[d.active.backend] ?? d.active.backend);
         setActiveModelLabel(d.active.model || '');
       })
@@ -122,6 +125,33 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  // Quick-switch to a specific backend (uses its default model)
+  async function quickSwitchBackend(backendKey, label) {
+    try {
+      const modelsRes = await fetch('http://localhost:3001/api/models');
+      const modelsData = await modelsRes.json();
+      const backend = modelsData.backends[backendKey];
+      const defaultModel = backend?.models?.[0]?.id || '';
+
+      const res = await fetch('http://localhost:3001/api/models/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backend: backendKey, model: defaultModel }),
+      });
+      const json = await res.json();
+      const backendNames = { lmstudio: 'LM Studio', ollama: 'Ollama', claude: 'Claude', nvidia: 'NVIDIA' };
+      setActiveBackendLabel(backendNames[json.active.backend] ?? json.active.backend);
+      setActiveModelLabel(json.active.model || '');
+      // Re-check vision capability
+      fetch('http://localhost:3001/api/vision-check')
+        .then(r => r.json())
+        .then(d => setIsVisionModel(d.isVision))
+        .catch(() => {});
+    } catch (e) {
+      console.error(`Failed to switch to ${label}:`, e);
+    }
+  }
+
   function handleMcpClose(updatedConfig) {
     if (updatedConfig?.servers) {
       setActiveMcpCount(Object.values(updatedConfig.servers).filter(s => s.running).length);
@@ -131,7 +161,7 @@ export default function App() {
 
   function handleModelClose(active) {
     if (active) {
-      const backendNames = { lmstudio: 'LM Studio', ollama: 'Ollama' };
+      const backendNames = { lmstudio: 'LM Studio', ollama: 'Ollama', claude: 'Claude', nvidia: 'NVIDIA' };
       setActiveBackendLabel(backendNames[active.backend] ?? active.backend);
       setActiveModelLabel(active.model || '');
       // Re-check vision capability for the newly selected model
@@ -276,7 +306,8 @@ export default function App() {
         signal:  controller.signal,
         body:    JSON.stringify({
           // content may be string (text) or array (vision) — both are valid OpenAI format
-          messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content }))
+          messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content })),
+          ...(customSystemPrompt ? { customSystemPrompt } : {}),
         })
       });
 
@@ -451,6 +482,23 @@ export default function App() {
               </button>
             </>
           )}
+          {/* Quick-switch backend buttons */}
+          <button
+            className={`backend-quick-btn ${activeBackendLabel === 'Claude' ? 'backend-quick-btn--active' : ''}`}
+            onClick={() => quickSwitchBackend('claude', 'Claude')}
+            title="Switch to Claude (Anthropic)"
+          >
+            <span className="backend-quick-icon">🟣</span>
+            <span>Claude</span>
+          </button>
+          <button
+            className={`backend-quick-btn ${activeBackendLabel === 'NVIDIA' ? 'backend-quick-btn--active' : ''}`}
+            onClick={() => quickSwitchBackend('nvidia', 'NVIDIA')}
+            title="Switch to NVIDIA (Kimi K2.5)"
+          >
+            <span className="backend-quick-icon">🟢</span>
+            <span>NVIDIA</span>
+          </button>
           {/* Model / backend switcher */}
           <button
             className="model-btn"
@@ -618,55 +666,115 @@ export default function App() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="input-box">
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,.txt,.md,text/plain,text/markdown"
-            multiple
-            style={{ display: 'none' }}
-            onChange={handleFileSelect}
-          />
-          {/* Upload button */}
-          <button
-            type="button"
-            className="upload-btn"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading || describingImage}
-            title="Attach image or text file"
-          >
-            <Paperclip size={16} />
-          </button>
+        <div className="input-row">
+          <form onSubmit={handleSubmit} className="input-box">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.txt,.md,text/plain,text/markdown"
+              multiple
+              style={{ display: 'none' }}
+              onChange={handleFileSelect}
+            />
+            {/* Upload button */}
+            <button
+              type="button"
+              className="upload-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading || describingImage}
+              title="Attach image or text file"
+            >
+              <Paperclip size={16} />
+            </button>
 
-          <input
-            type="text"
-            placeholder={
-              describingImage ? 'Describing image with Qwen3vision…' :
-              isLoading       ? 'Generating…' :
-                                'Type your marketing assignment here…'
-            }
-            value={inputMessage}
-            onChange={e => setInputMessage(e.target.value)}
-            disabled={isLoading || describingImage}
-          />
-          {isLoading || describingImage ? (
-            <button type="button" className="stop-btn" onClick={handleStop} title="Stop generation"
-              disabled={describingImage}>
-              {describingImage
-                ? <Loader size={16} className="mcp-spin" />
-                : <Square size={16} fill="currentColor" />}
-            </button>
-          ) : (
-            <button type="submit" disabled={!inputMessage.trim() && attachments.length === 0}>
-              <Send size={18} />
-            </button>
-          )}
-        </form>
+            <input
+              type="text"
+              placeholder={
+                describingImage ? 'Describing image with Qwen3vision…' :
+                isLoading       ? 'Generating…' :
+                customSystemPrompt ? 'Custom prompt active — type your message…' :
+                                  'Type your marketing assignment here…'
+              }
+              value={inputMessage}
+              onChange={e => setInputMessage(e.target.value)}
+              disabled={isLoading || describingImage}
+            />
+            {isLoading || describingImage ? (
+              <button type="button" className="stop-btn" onClick={handleStop} title="Stop generation"
+                disabled={describingImage}>
+                {describingImage
+                  ? <Loader size={16} className="mcp-spin" />
+                  : <Square size={16} fill="currentColor" />}
+              </button>
+            ) : (
+              <button type="submit" disabled={!inputMessage.trim() && attachments.length === 0}>
+                <Send size={18} />
+              </button>
+            )}
+          </form>
+          <button
+            className={`prompt-config-btn ${customSystemPrompt ? 'prompt-config-btn--active' : ''}`}
+            onClick={() => { setPromptDraft(customSystemPrompt); setShowPromptEditor(true); }}
+            title={customSystemPrompt ? 'Custom system prompt active — click to edit' : 'Set custom system prompt'}
+          >
+            <SlidersHorizontal size={16} />
+          </button>
+        </div>
       </footer>
 
       {showMcp && <McpSettings onClose={handleMcpClose} />}
       {showModelSelector && <ModelSelector onClose={handleModelClose} />}
+
+      {/* ── System Prompt Editor Modal ── */}
+      {showPromptEditor && (
+        <div className="mcp-overlay" onClick={() => setShowPromptEditor(false)}>
+          <div className="mcp-panel prompt-panel" onClick={e => e.stopPropagation()}>
+            <div className="mcp-panel-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <SlidersHorizontal size={15} />
+                <span>System Prompt</span>
+                {customSystemPrompt && <span className="mcp-badge">Custom</span>}
+              </div>
+              <button className="mcp-close-btn" onClick={() => setShowPromptEditor(false)}>
+                <XIcon size={15} />
+              </button>
+            </div>
+            <div className="mcp-panel-body prompt-editor-body">
+              <textarea
+                className="prompt-textarea"
+                value={promptDraft}
+                onChange={e => setPromptDraft(e.target.value)}
+                placeholder="Leave empty to use the default Orchestrator prompt.&#10;&#10;Write a custom system prompt here to override it. MCP tools will be appended automatically."
+                spellCheck={false}
+              />
+            </div>
+            <div className="prompt-editor-footer">
+              <span className="prompt-footer-hint">
+                {promptDraft.trim()
+                  ? `${promptDraft.trim().length} chars — replaces Orchestrator prompt`
+                  : 'Empty — default Orchestrator prompt will be used'}
+              </span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {customSystemPrompt && (
+                  <button
+                    className="prompt-editor-btn prompt-editor-btn--reset"
+                    onClick={() => { setCustomSystemPrompt(''); setPromptDraft(''); setShowPromptEditor(false); }}
+                  >
+                    Reset to Default
+                  </button>
+                )}
+                <button
+                  className="prompt-editor-btn prompt-editor-btn--save"
+                  onClick={() => { setCustomSystemPrompt(promptDraft.trim()); setShowPromptEditor(false); }}
+                >
+                  {promptDraft.trim() ? 'Apply Prompt' : 'Use Default'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -46,14 +46,202 @@ const BACKENDS = {
     icon: '🦙',
     url: process.env.OLLAMA_URL || "http://localhost:11434/v1",
   },
+  claude: {
+    key: 'claude',
+    name: 'Claude',
+    icon: '🟣',
+    url: 'https://api.anthropic.com/v1',
+    apiKey: process.env.ANTHROPIC_API_KEY || '',
+    defaultModel: 'claude-sonnet-4-20250514',
+  },
+  nvidia: {
+    key: 'nvidia',
+    name: 'NVIDIA',
+    icon: '🟢',
+    url: 'https://integrate.api.nvidia.com/v1',
+    apiKey: process.env.NVIDIA_API_KEY || '',
+    defaultModel: 'moonshotai/kimi-k2.5',
+  },
 };
 
 // Active selection (in-memory, resets on restart — use .env to set defaults)
 let activeBackend = process.env.DEFAULT_BACKEND || 'ollama';
 let activeModel   = process.env.DEFAULT_MODEL   || '';
 
-function getUrlForBackend(backendKey) {
-  return BACKENDS[backendKey]?.url ?? BACKENDS.ollama.url;
+// ── Unified chat completion caller ───────────────────────────────────────────
+
+/**
+ * Calls the chat completion API for any backend.
+ * - ollama / lmstudio: OpenAI-compatible, no auth
+ * - nvidia: OpenAI-compatible, Bearer token
+ * - claude: Anthropic Messages API (translated to/from OpenAI format)
+ */
+async function chatCompletion(backendKey, { model, messages, temperature, max_tokens, stream, tools, tool_choice }) {
+  const backend = BACKENDS[backendKey];
+  const url     = backend.url;
+
+  // ── Claude (Anthropic Messages API) ───────────────────────────────────────
+  if (backendKey === 'claude') {
+    // Extract system message
+    const systemMsg = messages.find(m => m.role === 'system')?.content || '';
+    const apiMessages = messages
+      .filter(m => m.role !== 'system')
+      .map(m => {
+        // Convert tool role to assistant/user pair for Anthropic format
+        if (m.role === 'tool') {
+          return { role: 'user', content: [{ type: 'tool_result', tool_use_id: m.tool_call_id, content: m.content }] };
+        }
+        // Convert assistant messages with tool_calls
+        if (m.role === 'assistant' && m.tool_calls?.length) {
+          const content = [];
+          if (m.content) content.push({ type: 'text', text: m.content });
+          for (const tc of m.tool_calls) {
+            content.push({ type: 'tool_use', id: tc.id, name: tc.function.name, input: JSON.parse(tc.function.arguments || '{}') });
+          }
+          return { role: 'assistant', content };
+        }
+        // Handle multi-part content (vision)
+        if (Array.isArray(m.content)) {
+          const parts = m.content.map(p => {
+            if (p.type === 'text') return { type: 'text', text: p.text };
+            if (p.type === 'image_url') {
+              const url = p.image_url.url;
+              if (url.startsWith('data:')) {
+                const match = url.match(/^data:(.*?);base64,(.*)$/);
+                if (match) return { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } };
+              }
+              return { type: 'image', source: { type: 'url', url } };
+            }
+            return { type: 'text', text: String(p) };
+          });
+          return { role: m.role, content: parts };
+        }
+        return { role: m.role, content: m.content };
+      });
+
+    // Build Anthropic tools format
+    let anthropicTools;
+    if (tools?.length) {
+      anthropicTools = tools.map(t => ({
+        name: t.function.name,
+        description: t.function.description || '',
+        input_schema: t.function.parameters || { type: 'object', properties: {} },
+      }));
+    }
+
+    const body = {
+      model,
+      max_tokens: max_tokens || 4096,
+      messages: apiMessages,
+      ...(systemMsg ? { system: systemMsg } : {}),
+      ...(temperature != null ? { temperature } : {}),
+      ...(anthropicTools ? { tools: anthropicTools } : {}),
+      stream: false, // Claude streaming uses a different format; we always use non-streaming and chunk the response
+    };
+
+    const fetchRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': backend.apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!fetchRes.ok) {
+      const errText = await fetchRes.text();
+      const error = new Error(`Claude API error (${fetchRes.status}): ${errText}`);
+      error.status = fetchRes.status;
+      throw error;
+    }
+
+    const data = await fetchRes.json();
+
+    // Translate Anthropic response → OpenAI format
+    const textParts = (data.content || []).filter(b => b.type === 'text').map(b => b.text);
+    const toolUses  = (data.content || []).filter(b => b.type === 'tool_use');
+
+    const message = { role: 'assistant', content: textParts.join('') || '' };
+    let finish_reason = data.stop_reason === 'end_turn' ? 'stop' : data.stop_reason;
+
+    if (toolUses.length > 0) {
+      message.tool_calls = toolUses.map(tu => ({
+        id: tu.id,
+        type: 'function',
+        function: { name: tu.name, arguments: JSON.stringify(tu.input) },
+      }));
+      finish_reason = 'tool_calls';
+    }
+
+    return { choices: [{ message, finish_reason }] };
+  }
+
+  // ── NVIDIA / LM Studio / Ollama (OpenAI-compatible) ───────────────────────
+  const headers = { 'Content-Type': 'application/json' };
+  if (backend.apiKey) {
+    headers['Authorization'] = `Bearer ${backend.apiKey}`;
+  }
+
+  const body = {
+    model,
+    messages,
+    temperature,
+    max_tokens,
+    stream: stream || false,
+    ...(tools?.length ? { tools, tool_choice: tool_choice || 'auto' } : {}),
+  };
+
+  const fetchRes = await fetch(`${url}/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!fetchRes.ok) {
+    const errText = await fetchRes.text();
+    const error = new Error(`${backend.name} error (${fetchRes.status}): ${errText}`);
+    error.status = fetchRes.status;
+    throw error;
+  }
+
+  if (stream) {
+    // Return the raw response for streaming
+    return fetchRes;
+  }
+
+  return fetchRes.json();
+}
+
+/**
+ * Stream a chat completion (for OpenAI-compatible backends).
+ * Claude is handled via non-streaming + chunked SSE writes.
+ */
+async function streamCompletion(backendKey, params, sseRes) {
+  const backend = BACKENDS[backendKey];
+
+  if (backendKey === 'claude') {
+    // Non-streaming for Claude — chunk the final text to SSE
+    const result = await chatCompletion(backendKey, { ...params, stream: false });
+    const content = result.choices?.[0]?.message?.content || '';
+    const CHUNK = 30;
+    for (let i = 0; i < content.length; i += CHUNK) {
+      sseRes.write(`data: ${JSON.stringify({ choices: [{ delta: { content: content.slice(i, i + CHUNK) } }] })}\n\n`);
+    }
+    sseRes.write(`data: [DONE]\n\n`);
+    return sseRes.end();
+  }
+
+  // OpenAI-compatible streaming (nvidia, ollama, lmstudio)
+  const fetchRes = await chatCompletion(backendKey, { ...params, stream: true });
+  const reader  = fetchRes.body.getReader();
+  const decoder = new TextDecoder();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    sseRes.write(decoder.decode(value));
+  }
+  return sseRes.end();
 }
 
 // ── Context-length helpers ────────────────────────────────────────────────────
@@ -77,7 +265,52 @@ async function fetchOllamaContextLength(nativeBase, modelId) {
 }
 
 async function fetchModelsFromBackend(key) {
-  const { url } = BACKENDS[key];
+  const backend = BACKENDS[key];
+  const { url } = backend;
+
+  // Claude uses a different API format — return default model, check reachability via messages endpoint
+  if (key === 'claude') {
+    if (!backend.apiKey) return { online: false, models: [], error: 'ANTHROPIC_API_KEY not set' };
+    try {
+      // Light check: list models via Anthropic API
+      const res = await fetch('https://api.anthropic.com/v1/models', {
+        headers: {
+          'x-api-key': backend.apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const ids = (data.data || []).map(m => m.id).filter(Boolean);
+      const models = ids.length > 0
+        ? ids.map(id => ({ id, contextLength: null }))
+        : [{ id: backend.defaultModel, contextLength: 200000 }];
+      return { online: true, models };
+    } catch (e) {
+      // Fallback: assume online if key is set, provide default model
+      return { online: true, models: [{ id: backend.defaultModel, contextLength: 200000 }], error: null };
+    }
+  }
+
+  // NVIDIA uses OpenAI-compatible API — return default model, check via /models
+  if (key === 'nvidia') {
+    if (!backend.apiKey) return { online: false, models: [], error: 'NVIDIA_API_KEY not set' };
+    try {
+      const res = await fetch(`${url}/models`, {
+        headers: { 'Authorization': `Bearer ${backend.apiKey}` },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const ids = (data.data || []).map(m => m.id).filter(Boolean);
+      return { online: true, models: ids.length > 0 ? ids.map(id => ({ id, contextLength: null })) : [{ id: backend.defaultModel, contextLength: null }] };
+    } catch (e) {
+      // Fallback with default model
+      return { online: true, models: [{ id: backend.defaultModel, contextLength: null }] };
+    }
+  }
+
   try {
     const res = await fetch(`${url}/models`, { signal: AbortSignal.timeout(4000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -133,7 +366,7 @@ HOW TO WORK:
 4. After all agents have responded, synthesise their outputs into a final cohesive response
 
 STRICT RULES:
-- ALWAYS delegate specialist tasks — never answer domain questions yourself
+- ALWAYS delegate specialist tasks analysis to your agents
 - Pass the complete user context (URL, product details, etc.) in every task description
 - Your synthesis should connect and amplify agent results, not just summarise them
 - For simple questions (greetings, capability questions), answer directly without delegating`;
@@ -196,7 +429,6 @@ async function runAgentJob({ agentId, task, mcpTools, sseRes }) {
   if (!agent) throw new Error(`Unknown agent: "${agentId}"`);
 
   const backendKey = agent.backend || activeBackend;
-  const url        = getUrlForBackend(backendKey);
   const model      = await resolveBackendModel(backendKey, agent.model || null);
   const key        = `${backendKey}/${model}`;
   const isBusy     = queue.isBusy(key);
@@ -230,24 +462,15 @@ async function runAgentJob({ agentId, task, mcpTools, sseRes }) {
     let finalContent = '';
 
     for (let round = 0; round < MAX_AGENT_ROUNDS; round++) {
-      const fetchRes = await fetch(`${url}/chat/completions`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          model,
-          messages:    [{ role: 'system', content: agentPrompt }, ...loopMessages],
-          temperature: TEMPERATURE,
-          max_tokens:  MAX_TOKENS,
-          stream:      false,
-          ...(mcpTools.length > 0 ? { tools: mcpTools, tool_choice: 'auto' } : {}),
-        }),
+      const data = await chatCompletion(backendKey, {
+        model,
+        messages:    [{ role: 'system', content: agentPrompt }, ...loopMessages],
+        temperature: TEMPERATURE,
+        max_tokens:  MAX_TOKENS,
+        stream:      false,
+        ...(mcpTools.length > 0 ? { tools: mcpTools, tool_choice: 'auto' } : {}),
       });
 
-      if (!fetchRes.ok) {
-        throw new Error(`${BACKENDS[backendKey]?.name ?? backendKey} error (${fetchRes.status})`);
-      }
-
-      const data   = await fetchRes.json();
       const choice = data.choices?.[0];
       if (!choice) break;
 
@@ -284,15 +507,19 @@ async function runAgentJob({ agentId, task, mcpTools, sseRes }) {
 // ── Model API ─────────────────────────────────────────────────────────────────
 
 app.get('/api/models', async (_req, res) => {
-  const [lmstudio, ollama] = await Promise.all([
+  const [lmstudio, ollama, claude, nvidia] = await Promise.all([
     fetchModelsFromBackend('lmstudio'),
     fetchModelsFromBackend('ollama'),
+    fetchModelsFromBackend('claude'),
+    fetchModelsFromBackend('nvidia'),
   ]);
   res.json({
     active: { backend: activeBackend, model: activeModel },
     backends: {
-      lmstudio: { ...BACKENDS.lmstudio, ...lmstudio },
-      ollama:   { ...BACKENDS.ollama,   ...ollama   },
+      lmstudio: { ...BACKENDS.lmstudio, ...lmstudio, apiKey: undefined },
+      ollama:   { ...BACKENDS.ollama,   ...ollama,   apiKey: undefined },
+      claude:   { ...BACKENDS.claude,   ...claude,   apiKey: undefined },
+      nvidia:   { ...BACKENDS.nvidia,   ...nvidia,   apiKey: undefined },
     },
   });
 });
@@ -338,7 +565,10 @@ app.get('/api/vision-check', async (_req, res) => {
   const model      = await resolveBackendModel(backendKey, null);
 
   let isVision = false;
-  if (backendKey === 'ollama') {
+  if (backendKey === 'claude') {
+    // All Claude models support vision
+    isVision = true;
+  } else if (backendKey === 'ollama') {
     const nativeBase = BACKENDS.ollama.url.replace(/\/v1\/?$/, '');
     const fromApi = await checkOllamaVisionCapability(nativeBase, model);
     isVision = fromApi !== null ? fromApi : isVisionModelByName(model);
@@ -376,7 +606,7 @@ app.post('/api/describe-image', async (req, res) => {
 // ── Chat API ──────────────────────────────────────────────────────────────────
 
 app.post('/api/chat', async (req, res) => {
-  const { messages, useAgent } = req.body;
+  const { messages, useAgent, customSystemPrompt } = req.body;
   // content may be a string OR a multi-part array (e.g. vision messages).
   // Extract only the text parts so detectAgent() always receives a plain string.
   const rawContent = messages[messages.length - 1]?.content ?? '';
@@ -384,7 +614,9 @@ app.post('/api/chat', async (req, res) => {
     ? rawContent.filter(p => p.type === 'text').map(p => p.text).join(' ')
     : String(rawContent);
 
-  const agentId = useAgent || detectAgent(lastUserMessage);
+  // Custom system prompt overrides agent detection — use it as a direct LLM call
+  const useCustomPrompt = customSystemPrompt && customSystemPrompt.trim().length > 0;
+  const agentId = useCustomPrompt ? null : (useAgent || detectAgent(lastUserMessage));
   const agent   = agentId && AGENTS[agentId] ? AGENTS[agentId] : null;
 
   // SSE headers
@@ -397,7 +629,9 @@ app.post('/api/chat', async (req, res) => {
   res.write(`data: ${JSON.stringify(
     agent
       ? { id: agentId, name: agent.name, emoji: agent.emoji }
-      : { id: 'orchestrator', name: 'Orchestrator', emoji: '🤖' }
+      : useCustomPrompt
+        ? { id: 'custom', name: 'Custom Prompt', emoji: '⚙️' }
+        : { id: 'orchestrator', name: 'Orchestrator', emoji: '🤖' }
   )}\n\n`);
 
   const mcpTools = await getAllTools();
@@ -407,7 +641,6 @@ app.post('/api/chat', async (req, res) => {
     // ── PATH A: Direct agent (keyword-triggered or explicit useAgent) ─────────
     if (agent) {
       const backendKey  = agent.backend  || activeBackend;
-      const url         = getUrlForBackend(backendKey);
       const model       = await resolveBackendModel(backendKey, agent.model || null);
       const key         = `${backendKey}/${model}`;
       const backendName = BACKENDS[backendKey]?.name ?? backendKey;
@@ -422,38 +655,25 @@ app.post('/api/chat', async (req, res) => {
 
         if (mcpTools.length === 0) {
           // Fast path: direct streaming (no tool loop needed)
-          const fetchRes = await fetch(`${url}/chat/completions`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({
+          try {
+            return await streamCompletion(backendKey, {
               model,
               messages:    [{ role: 'system', content: agentPrompt }, ...messages],
               temperature: TEMPERATURE,
               max_tokens:  MAX_TOKENS,
-              stream:      true,
-            }),
-          });
-          if (!fetchRes.ok) {
-            res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `⚠️ ${backendName} error (${fetchRes.status})` } }] })}\n\n`);
+            }, res);
+          } catch (e) {
+            res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `⚠️ ${backendName} error: ${e.message}` } }] })}\n\n`);
             return res.end();
           }
-          const reader  = fetchRes.body.getReader();
-          const decoder = new TextDecoder();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            res.write(decoder.decode(value));
-          }
-          return res.end();
         }
 
         // Tool-call loop
         const loopMessages = [...messages];
         for (let round = 0; round < MAX_AGENT_ROUNDS; round++) {
-          const fetchRes = await fetch(`${url}/chat/completions`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({
+          let data;
+          try {
+            data = await chatCompletion(backendKey, {
               model,
               messages:    [{ role: 'system', content: agentPrompt }, ...loopMessages],
               temperature: TEMPERATURE,
@@ -461,15 +681,12 @@ app.post('/api/chat', async (req, res) => {
               stream:      false,
               tools:       mcpTools,
               tool_choice: 'auto',
-            }),
-          });
-          if (!fetchRes.ok) {
-            const err = await fetchRes.text();
-            res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `⚠️ ${backendName} error: ${err}` } }] })}\n\n`);
+            });
+          } catch (e) {
+            res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `⚠️ ${backendName} error: ${e.message}` } }] })}\n\n`);
             res.write(`data: [DONE]\n\n`);
             return res.end();
           }
-          const data   = await fetchRes.json();
           const choice = data.choices?.[0];
           if (!choice) break;
 
@@ -504,34 +721,47 @@ app.post('/api/chat', async (req, res) => {
       return;
     }
 
-    // ── PATH B: Orchestrator — tool-call loop with delegate_to_agent ──────────
+    // ── PATH B: Orchestrator / Custom Prompt ───────────────────────────────────
     //
-    // The orchestrator is NOT queued itself — it runs as the coordinator.
-    // Agent sub-jobs go through the queue via runAgentJob().
-    // Sequential execution is guaranteed because we `await runAgentJob()` before
-    // processing the next tool call.
+    // When a custom system prompt is active with no MCP tools, stream directly.
+    // Otherwise use the tool-call loop (with delegate_to_agent for orchestrator,
+    // or just MCP tools for custom prompts).
 
     const backendKey  = activeBackend;
     const model       = await resolveBackendModel(backendKey, null);
-    const url         = getUrlForBackend(backendKey);
     const backendName = BACKENDS[backendKey]?.name ?? backendKey;
 
-    // Orchestrator gets delegate_to_agent + any MCP tools
-    const orchTools = [DELEGATE_TOOL, ...mcpTools];
+    // Custom prompt: no delegate_to_agent, just MCP tools; otherwise full orchestrator
+    const orchTools = useCustomPrompt ? [...mcpTools] : [DELEGATE_TOOL, ...mcpTools];
 
-    let orchPrompt = ORCHESTRATOR_SYSTEM;
+    let orchPrompt = useCustomPrompt ? customSystemPrompt.trim() : ORCHESTRATOR_SYSTEM;
     if (mcpTools.length > 0) {
       const list = mcpTools.map(t => `- ${t.function.name}: ${t.function.description}`).join('\n');
-      orchPrompt += `\n\nAdditional MCP tools (passed through to agents):\n${list}`;
+      orchPrompt += `\n\nMCP tools available — use when relevant:\n${list}`;
     }
 
     const loopMessages = messages.slice(-6);
 
+    // Fast path: custom prompt with no tools — stream directly
+    if (useCustomPrompt && orchTools.length === 0) {
+      try {
+        return await streamCompletion(backendKey, {
+          model,
+          messages: [{ role: 'system', content: orchPrompt }, ...loopMessages],
+          temperature: TEMPERATURE,
+          max_tokens:  MAX_TOKENS,
+        }, res);
+      } catch (e) {
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `⚠️ ${backendName} error: ${e.message}` } }] })}\n\n`);
+        res.write(`data: [DONE]\n\n`);
+        return res.end();
+      }
+    }
+
     for (let round = 0; round < MAX_ORCH_ROUNDS; round++) {
-      const fetchRes = await fetch(`${url}/chat/completions`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
+      let data;
+      try {
+        data = await chatCompletion(backendKey, {
           model,
           messages:    [{ role: 'system', content: orchPrompt }, ...loopMessages],
           temperature: TEMPERATURE,
@@ -539,17 +769,13 @@ app.post('/api/chat', async (req, res) => {
           stream:      false,
           tools:       orchTools,
           tool_choice: 'auto',
-        }),
-      });
-
-      if (!fetchRes.ok) {
-        const err = await fetchRes.text();
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `⚠️ ${backendName} error: ${err}` } }] })}\n\n`);
+        });
+      } catch (e) {
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `⚠️ ${backendName} error: ${e.message}` } }] })}\n\n`);
         res.write(`data: [DONE]\n\n`);
         return res.end();
       }
 
-      const data   = await fetchRes.json();
       const choice = data.choices?.[0];
       if (!choice) break;
 

@@ -7,7 +7,14 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import express from 'express';
 import cors from 'cors';
-import { AGENTS } from './agents.js';
+import fs from 'fs';
+import { AGENTS as MARKETING_AGENTS } from './agents.js';
+import { AGENTS as CODER_AGENTS }     from './agents-code.js';
+
+const AGENT_SETS = { marketing: MARKETING_AGENTS, coder: CODER_AGENTS };
+
+// Load ProCoder system prompt from use.txt (beside .env, two levels up)
+const CODER_SYSTEM = fs.readFileSync(path.resolve(__dirname, '../../use.txt'), 'utf-8').trim();
 import { ModelQueue } from './job-queue.js';
 import { isVisionModelByName, checkOllamaVisionCapability, describeImage } from './vision-utils.js';
 import {
@@ -27,7 +34,8 @@ const PORT = 3001;
 const TEMPERATURE           = parseFloat(process.env.TEMPERATURE || "0.7");
 const MAX_TOKENS            = parseInt(process.env.MAX_TOKENS || "4096", 10);
 const MAX_AGENT_ROUNDS      = 6;   // tool-call rounds per agent
-const MAX_ORCH_ROUNDS       = 12;  // orchestrator loop iterations (covers multi-agent tasks)
+const MAX_ORCH_ROUNDS       = 20;  // orchestrator loop iterations (covers multi-agent + MCP calls + synthesis)
+const AGENT_RESULT_LIMIT    = 12000; // max chars per agent result returned to orchestrator
 
 // ── Model queue (serialises calls per model key) ──────────────────────────────
 const queue = new ModelQueue();
@@ -373,42 +381,61 @@ STRICT RULES:
 
 // ── delegate_to_agent tool definition ────────────────────────────────────────
 
-const DELEGATE_TOOL = {
-  type: 'function',
-  function: {
-    name: 'delegate_to_agent',
-    description:
-      'Delegate a specific sub-task to a specialist agent and wait for their complete analysis. ' +
-      'Call ONE agent at a time — wait for the result before calling the next.',
-    parameters: {
-      type: 'object',
-      properties: {
-        agent_id: {
-          type: 'string',
-          enum: Object.keys(AGENTS),
-          description: 'ID of the specialist agent to delegate to',
+function makeDelegateTool(agents) {
+  return {
+    type: 'function',
+    function: {
+      name: 'delegate_to_agent',
+      description:
+        'Delegate a specific sub-task to a specialist agent and wait for their complete analysis. ' +
+        'Call ONE agent at a time — wait for the result before calling the next.',
+      parameters: {
+        type: 'object',
+        properties: {
+          agent_id: {
+            type: 'string',
+            enum: Object.keys(agents),
+            description: 'ID of the specialist agent to delegate to',
+          },
+          task: {
+            type: 'string',
+            description:
+              'Full task description including all context (URL, product details, user goals, etc.)',
+          },
         },
-        task: {
-          type: 'string',
-          description:
-            'Full task description including all context (URL, product details, user goals, etc.)',
-        },
+        required: ['agent_id', 'task'],
       },
-      required: ['agent_id', 'task'],
     },
-  },
-};
+  };
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function detectAgent(msg) {
+function detectAgent(msg, agents) {
   const lower = msg.toLowerCase();
-  for (const [id, agent] of Object.entries(AGENTS)) {
+  for (const [id, agent] of Object.entries(agents)) {
     for (const trigger of agent.triggers) {
       if (lower.includes(trigger)) return id;
     }
   }
   return null;
+}
+
+// ── Memory helpers ───────────────────────────────────────────────────────────
+
+/** Search the MCP memory server for context relevant to the user's message. */
+async function recallMemory(userMessage) {
+  try {
+    const result = await callTool('memory__search_nodes', { query: userMessage });
+    return result && result.trim().length > 0 ? result.trim() : '';
+  } catch {
+    return '';  // memory server not running or error — silently skip
+  }
+}
+
+/** Filter: only non-memory MCP tools (for sub-agents). */
+function nonMemoryTools(mcpTools) {
+  return mcpTools.filter(t => !t.function.name.startsWith('memory__'));
 }
 
 // ── Core: run one agent job through the model queue ──────────────────────────
@@ -424,8 +451,8 @@ function detectAgent(msg) {
  *
  * Returns the agent's complete response text.
  */
-async function runAgentJob({ agentId, task, mcpTools, sseRes }) {
-  const agent = AGENTS[agentId];
+async function runAgentJob({ agentId, task, mcpTools, sseRes, agents, memoryContext }) {
+  const agent = agents[agentId];
   if (!agent) throw new Error(`Unknown agent: "${agentId}"`);
 
   const backendKey = agent.backend || activeBackend;
@@ -451,10 +478,14 @@ async function runAgentJob({ agentId, task, mcpTools, sseRes }) {
 
     const startMs = Date.now();
 
-    // Build agent system prompt — inject MCP tools but NOT delegate_to_agent (no recursion)
+    // Build agent system prompt — inject memory context + non-memory MCP tools
     let agentPrompt = agent.system_prompt;
-    if (mcpTools.length > 0) {
-      const list = mcpTools.map(t => `- ${t.function.name}: ${t.function.description}`).join('\n');
+    if (memoryContext) {
+      agentPrompt += `\n\nRELEVANT PRIOR CONTEXT (from memory):\n${memoryContext}`;
+    }
+    const agentMcpTools = nonMemoryTools(mcpTools);
+    if (agentMcpTools.length > 0) {
+      const list = agentMcpTools.map(t => `- ${t.function.name}: ${t.function.description}`).join('\n');
       agentPrompt += `\n\nMCP tools available — use proactively when relevant:\n${list}`;
     }
 
@@ -468,7 +499,7 @@ async function runAgentJob({ agentId, task, mcpTools, sseRes }) {
         temperature: TEMPERATURE,
         max_tokens:  MAX_TOKENS,
         stream:      false,
-        ...(mcpTools.length > 0 ? { tools: mcpTools, tool_choice: 'auto' } : {}),
+        ...(agentMcpTools.length > 0 ? { tools: agentMcpTools, tool_choice: 'auto' } : {}),
       });
 
       const choice = data.choices?.[0];
@@ -606,7 +637,9 @@ app.post('/api/describe-image', async (req, res) => {
 // ── Chat API ──────────────────────────────────────────────────────────────────
 
 app.post('/api/chat', async (req, res) => {
-  const { messages, useAgent, customSystemPrompt } = req.body;
+  const { messages, useAgent, customSystemPrompt, mode } = req.body;
+  const agents = AGENT_SETS[mode] || MARKETING_AGENTS;
+  const defaultSystem = mode === 'coder' ? CODER_SYSTEM : ORCHESTRATOR_SYSTEM;
   // content may be a string OR a multi-part array (e.g. vision messages).
   // Extract only the text parts so detectAgent() always receives a plain string.
   const rawContent = messages[messages.length - 1]?.content ?? '';
@@ -616,8 +649,8 @@ app.post('/api/chat', async (req, res) => {
 
   // Custom system prompt overrides agent detection — use it as a direct LLM call
   const useCustomPrompt = customSystemPrompt && customSystemPrompt.trim().length > 0;
-  const agentId = useCustomPrompt ? null : (useAgent || detectAgent(lastUserMessage));
-  const agent   = agentId && AGENTS[agentId] ? AGENTS[agentId] : null;
+  const agentId = useCustomPrompt ? null : (useAgent || detectAgent(lastUserMessage, agents));
+  const agent   = agentId && agents[agentId] ? agents[agentId] : null;
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -631,10 +664,15 @@ app.post('/api/chat', async (req, res) => {
       ? { id: agentId, name: agent.name, emoji: agent.emoji }
       : useCustomPrompt
         ? { id: 'custom', name: 'Custom Prompt', emoji: '⚙️' }
-        : { id: 'orchestrator', name: 'Orchestrator', emoji: '🤖' }
+        : mode === 'coder'
+          ? { id: 'orchestrator', name: 'ProCoder', emoji: '💻' }
+          : { id: 'orchestrator', name: 'Orchestrator', emoji: '🤖' }
   )}\n\n`);
 
   const mcpTools = await getAllTools();
+
+  // ── Auto-recall: search memory for relevant prior context ──────────────────
+  const memoryContext = await recallMemory(lastUserMessage);
 
   try {
 
@@ -646,14 +684,18 @@ app.post('/api/chat', async (req, res) => {
       const backendName = BACKENDS[backendKey]?.name ?? backendKey;
 
       let agentPrompt = agent.system_prompt;
-      if (mcpTools.length > 0) {
-        const list = mcpTools.map(t => `- ${t.function.name}: ${t.function.description}`).join('\n');
+      if (memoryContext) {
+        agentPrompt += `\n\nRELEVANT PRIOR CONTEXT (from memory):\n${memoryContext}`;
+      }
+      const agentMcpTools = nonMemoryTools(mcpTools);
+      if (agentMcpTools.length > 0) {
+        const list = agentMcpTools.map(t => `- ${t.function.name}: ${t.function.description}`).join('\n');
         agentPrompt += `\n\nMCP tools available — use proactively when relevant:\n${list}`;
       }
 
       const { promise } = queue.enqueue(key, async () => {
 
-        if (mcpTools.length === 0) {
+        if (agentMcpTools.length === 0) {
           // Fast path: direct streaming (no tool loop needed)
           try {
             return await streamCompletion(backendKey, {
@@ -679,7 +721,7 @@ app.post('/api/chat', async (req, res) => {
               temperature: TEMPERATURE,
               max_tokens:  MAX_TOKENS,
               stream:      false,
-              tools:       mcpTools,
+              tools:       agentMcpTools,
               tool_choice: 'auto',
             });
           } catch (e) {
@@ -732,9 +774,19 @@ app.post('/api/chat', async (req, res) => {
     const backendName = BACKENDS[backendKey]?.name ?? backendKey;
 
     // Custom prompt: no delegate_to_agent, just MCP tools; otherwise full orchestrator
-    const orchTools = useCustomPrompt ? [...mcpTools] : [DELEGATE_TOOL, ...mcpTools];
+    const orchTools = useCustomPrompt ? [...mcpTools] : [makeDelegateTool(agents), ...mcpTools];
 
-    let orchPrompt = useCustomPrompt ? customSystemPrompt.trim() : ORCHESTRATOR_SYSTEM;
+    let orchPrompt = useCustomPrompt ? customSystemPrompt.trim() : defaultSystem;
+    if (memoryContext) {
+      orchPrompt += `\n\nRELEVANT PRIOR CONTEXT (from memory):\n${memoryContext}`;
+    }
+    if (!useCustomPrompt) {
+      orchPrompt += `\n\nMEMORY INSTRUCTIONS:
+- After completing a task, save key findings to memory using memory__create_entities (entity name = topic, observations = key facts).
+- Use memory__add_observations to update existing entities with new information.
+- Use memory__create_relations to link related entities (e.g. a company to its competitors).
+- Keep entries concise — store conclusions and actionable data, not raw output.`;
+    }
     if (mcpTools.length > 0) {
       const list = mcpTools.map(t => `- ${t.function.name}: ${t.function.description}`).join('\n');
       orchPrompt += `\n\nMCP tools available — use when relevant:\n${list}`;
@@ -794,6 +846,8 @@ app.post('/api/chat', async (req, res) => {
                 task:     args.task,
                 mcpTools,
                 sseRes:   res,
+                agents,
+                memoryContext,
               });
             } catch (e) {
               result = `Agent error: ${e.message}`;
@@ -809,7 +863,7 @@ app.post('/api/chat', async (req, res) => {
             }
           }
 
-          loopMessages.push({ role: 'tool', tool_call_id: tc.id, content: String(result).slice(0, 2000) });
+          loopMessages.push({ role: 'tool', tool_call_id: tc.id, content: String(result).slice(0, AGENT_RESULT_LIMIT) });
         }
 
       } else {
@@ -824,6 +878,24 @@ app.post('/api/chat', async (req, res) => {
       }
     }
 
+    // Max rounds exhausted — force a final synthesis pass without tools
+    try {
+      loopMessages.push({ role: 'user', content: 'Please synthesise all agent results into a final cohesive response now.' });
+      const final = await chatCompletion(backendKey, {
+        model,
+        messages:    [{ role: 'system', content: orchPrompt }, ...loopMessages],
+        temperature: TEMPERATURE,
+        max_tokens:  MAX_TOKENS,
+        stream:      false,
+      });
+      const content = final.choices?.[0]?.message?.content || '';
+      const CHUNK = 30;
+      for (let i = 0; i < content.length; i += CHUNK) {
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: content.slice(i, i + CHUNK) } }] })}\n\n`);
+      }
+    } catch (e) {
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `⚠️ Synthesis error: ${e.message}` } }] })}\n\n`);
+    }
     res.write(`data: [DONE]\n\n`);
     res.end();
 

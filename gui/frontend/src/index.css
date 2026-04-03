@@ -78,6 +78,40 @@ body {
   color: var(--accent-color);
 }
 
+/* ── Mode tabs (Orchestrator / ProCoder) ── */
+.mode-tabs {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+.mode-tab {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.mode-tab:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.05);
+}
+.mode-tab--active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+.mode-tab--active span {
+  color: var(--accent-color);
+}
+
 .chat-container {
   flex: 1;
   padding: 2rem;

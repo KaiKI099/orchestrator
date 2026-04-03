@@ -11,7 +11,7 @@
 
 // Case-insensitive substrings that indicate a vision-capable model
 const VISION_PATTERNS = [
-  'vision', 'vl', 'llava', 'bakllava', 'moondream',
+  'vision', 'vl', 'llava', ,'highiq', 'bakllava', 'moondream',
   'qwen3vision', 'qwenvision', 'qwen3-vl',
   'minicpm-v', 'internvl', 'cogvlm',
   'phi3vision', 'phi-3-vision', 'phi3-vision',

@@ -78,6 +78,7 @@ export default function App() {
   const [describingImage, setDescribingImage] = useState(false);
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [customSystemPrompt, setCustomSystemPrompt] = useState('');
+  const [activeMode, setActiveMode] = useState('marketing'); // 'marketing' | 'coder'
   const [promptDraft, setPromptDraft] = useState('');
 
   const messagesEndRef = useRef(null);
@@ -307,6 +308,7 @@ export default function App() {
         body:    JSON.stringify({
           // content may be string (text) or array (vision) — both are valid OpenAI format
           messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content })),
+          mode: activeMode,
           ...(customSystemPrompt ? { customSystemPrompt } : {}),
         })
       });
@@ -470,7 +472,16 @@ export default function App() {
     <div className="app-container">
       {/* ── Header ── */}
       <header className="header">
-        <h1>🤖 <span>Orchestrator</span></h1>
+        <div className="mode-tabs">
+          <button className={`mode-tab ${activeMode === 'marketing' ? 'mode-tab--active' : ''}`}
+            onClick={() => { setActiveMode('marketing'); setMessages([]); }}>
+            🤖 <span>Orchestrator</span>
+          </button>
+          <button className={`mode-tab ${activeMode === 'coder' ? 'mode-tab--active' : ''}`}
+            onClick={() => { setActiveMode('coder'); setMessages([]); }}>
+            💻 <span>ProCoder</span>
+          </button>
+        </div>
         <div className="header-actions">
           {messages.length > 0 && (
             <>
@@ -527,14 +538,25 @@ export default function App() {
       <main className="chat-container" ref={chatContainerRef}>
         {messages.length === 0 && (
           <div className="empty-state">
-            <div className="empty-state-icon">🤖</div>
-            <h2>Marketing Orchestrator</h2>
-            <p>9 specialist agents ready. Ask about keywords, funnels, competitors or ideas.</p>
-            <div className="agent-pills">
-              {[['🔍','Keywords'],['🛒','Buy Intent'],['📢','Ads'],['🔗','Backlinks'],['🎯','Competitors'],['🌊','Funnels'],['💡','Ideas'],['🌍','Regions'],['🔬','QA']].map(([e,n]) => (
-                <span key={n} className="agent-pill">{e} {n}</span>
-              ))}
-            </div>
+            {activeMode === 'marketing' ? (<>
+              <div className="empty-state-icon">🤖</div>
+              <h2>Marketing Orchestrator</h2>
+              <p>9 specialist agents ready. Ask about keywords, funnels, competitors or ideas.</p>
+              <div className="agent-pills">
+                {[['🔍','Keywords'],['🛒','Buy Intent'],['📢','Ads'],['🔗','Backlinks'],['🎯','Competitors'],['🌊','Funnels'],['💡','Ideas'],['🌍','Regions'],['🔬','QA']].map(([e,n]) => (
+                  <span key={n} className="agent-pill">{e} {n}</span>
+                ))}
+              </div>
+            </>) : (<>
+              <div className="empty-state-icon">💻</div>
+              <h2>ProCoder</h2>
+              <p>14 specialist agents ready. Ask about architecture, code, tests, security or deployment.</p>
+              <div className="agent-pills">
+                {[['🏗️','Architect'],['🎨','UX'],['⬆️','Upgrade'],['🟩','Node.js'],['🐍','Python'],['🌐','Fullstack'],['🚀','DevOps'],['🗄️','Database'],['🧪','Tests'],['🔒','Security'],['🔬','Review'],['✂️','Slimpro'],['📝','Docs']].map(([e,n]) => (
+                  <span key={n} className="agent-pill">{e} {n}</span>
+                ))}
+              </div>
+            </>)}
           </div>
         )}
 
@@ -694,6 +716,7 @@ export default function App() {
                 describingImage ? 'Describing image with Qwen3vision…' :
                 isLoading       ? 'Generating…' :
                 customSystemPrompt ? 'Custom prompt active — type your message…' :
+                activeMode === 'coder' ? 'Describe your coding task…' :
                                   'Type your marketing assignment here…'
               }
               value={inputMessage}

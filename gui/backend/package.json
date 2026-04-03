@@ -11,7 +11,8 @@
     "format": "prettier --write \"**/*.js\""
   },
   "devDependencies": {
-    "@types/node": "^20.x"
+    "@types/node": "^20.x",
+    "supertest": "^7.2.2"
   },
   "keywords": [],
   "author": "",

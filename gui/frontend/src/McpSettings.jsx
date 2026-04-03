@@ -25,7 +25,7 @@ export default function McpSettings({ onClose }) {
   // Poll every 3 s while any enabled server is still connecting
   useEffect(() => {
     if (!config) return;
-    const hasConnecting = Object.values(config.servers).some(s => s.enabled && !s.running);
+    const hasConnecting = Object.values(config.servers).some((s) => s.enabled && !s.running);
     if (!hasConnecting) return;
     const id = setTimeout(fetchConfig, 3000);
     return () => clearTimeout(id);
@@ -38,7 +38,7 @@ export default function McpSettings({ onClose }) {
   }
 
   async function handleToggle(name, currentEnabled) {
-    setToggling(prev => ({ ...prev, [name]: true }));
+    setToggling((prev) => ({ ...prev, [name]: true }));
     try {
       const res = await fetch(`http://localhost:3001/api/mcp/toggle/${name}`, {
         method: 'POST',
@@ -50,13 +50,13 @@ export default function McpSettings({ onClose }) {
     } catch (e) {
       console.error(e);
     } finally {
-      setToggling(prev => ({ ...prev, [name]: false }));
+      setToggling((prev) => ({ ...prev, [name]: false }));
     }
   }
 
   // Reconnect: disable then re-enable to restart the process
   async function handleReconnect(name) {
-    setToggling(prev => ({ ...prev, [name]: true }));
+    setToggling((prev) => ({ ...prev, [name]: true }));
     try {
       await fetch(`http://localhost:3001/api/mcp/toggle/${name}`, {
         method: 'POST',
@@ -73,25 +73,20 @@ export default function McpSettings({ onClose }) {
     } catch (e) {
       console.error(e);
     } finally {
-      setToggling(prev => ({ ...prev, [name]: false }));
+      setToggling((prev) => ({ ...prev, [name]: false }));
     }
   }
 
-  const connectedCount = config
-    ? Object.values(config.servers).filter(s => s.running).length
-    : 0;
+  const connectedCount = config ? Object.values(config.servers).filter((s) => s.running).length : 0;
 
   return (
     <div className="mcp-overlay" onClick={() => onClose(config)}>
-      <div className="mcp-panel" onClick={e => e.stopPropagation()}>
-
+      <div className="mcp-panel" onClick={(e) => e.stopPropagation()}>
         <div className="mcp-panel-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Zap size={15} style={{ color: 'var(--accent-color)' }} />
             <span>MCP Servers</span>
-            {connectedCount > 0 && (
-              <span className="mcp-badge">{connectedCount} connected</span>
-            )}
+            {connectedCount > 0 && <span className="mcp-badge">{connectedCount} connected</span>}
           </div>
           <div style={{ display: 'flex', gap: '0.4rem' }}>
             <button
@@ -115,47 +110,52 @@ export default function McpSettings({ onClose }) {
               <Loader size={16} className="mcp-spin" /> Connecting to backend…
             </div>
           )}
-          {config && Object.entries(config.servers).map(([name, server]) => (
-            <div key={name} className={`mcp-row ${server.enabled ? 'mcp-row--on' : ''}`}>
-              <span className="mcp-row-icon">{server.icon}</span>
-              <div className="mcp-row-info">
-                <div className="mcp-row-name">{name}</div>
-                <div className="mcp-row-desc">{server.description}</div>
-                {server.enabled && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div className={`mcp-row-status ${server.running ? 'mcp-row-status--ok' : 'mcp-row-status--pending'}`}>
-                      {server.running ? '● connected' : '○ connecting…'}
-                    </div>
-                    {!server.running && (
-                      <button
-                        className="mcp-reconnect-btn"
-                        onClick={() => handleReconnect(name)}
-                        disabled={toggling[name]}
-                        title="Restart connection"
+          {config &&
+            Object.entries(config.servers).map(([name, server]) => (
+              <div key={name} className={`mcp-row ${server.enabled ? 'mcp-row--on' : ''}`}>
+                <span className="mcp-row-icon">{server.icon}</span>
+                <div className="mcp-row-info">
+                  <div className="mcp-row-name">{name}</div>
+                  <div className="mcp-row-desc">{server.description}</div>
+                  {server.enabled && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div
+                        className={`mcp-row-status ${server.running ? 'mcp-row-status--ok' : 'mcp-row-status--pending'}`}
                       >
-                        {toggling[name]
-                          ? <Loader size={9} className="mcp-spin" />
-                          : <RefreshCw size={9} />
-                        }
-                        retry
-                      </button>
-                    )}
-                  </div>
-                )}
+                        {server.running ? '● connected' : '○ connecting…'}
+                      </div>
+                      {!server.running && (
+                        <button
+                          className="mcp-reconnect-btn"
+                          onClick={() => handleReconnect(name)}
+                          disabled={toggling[name]}
+                          title="Restart connection"
+                        >
+                          {toggling[name] ? (
+                            <Loader size={9} className="mcp-spin" />
+                          ) : (
+                            <RefreshCw size={9} />
+                          )}
+                          retry
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button
+                  className={`mcp-toggle ${server.enabled ? 'mcp-toggle--on' : 'mcp-toggle--off'}`}
+                  onClick={() => handleToggle(name, server.enabled)}
+                  disabled={toggling[name]}
+                  title={server.enabled ? 'Disable' : 'Enable'}
+                >
+                  {toggling[name] ? (
+                    <Loader size={10} className="mcp-spin" />
+                  ) : (
+                    <div className="mcp-toggle-thumb" />
+                  )}
+                </button>
               </div>
-              <button
-                className={`mcp-toggle ${server.enabled ? 'mcp-toggle--on' : 'mcp-toggle--off'}`}
-                onClick={() => handleToggle(name, server.enabled)}
-                disabled={toggling[name]}
-                title={server.enabled ? 'Disable' : 'Enable'}
-              >
-                {toggling[name]
-                  ? <Loader size={10} className="mcp-spin" />
-                  : <div className="mcp-toggle-thumb" />
-                }
-              </button>
-            </div>
-          ))}
+            ))}
         </div>
 
         <div className="mcp-panel-footer">

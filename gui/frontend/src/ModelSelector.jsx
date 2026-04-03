@@ -20,7 +20,9 @@ export default function ModelSelector({ onClose }) {
     }
   }, []);
 
-  useEffect(() => { fetchModels(); }, [fetchModels]);
+  useEffect(() => {
+    fetchModels();
+  }, [fetchModels]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -37,7 +39,7 @@ export default function ModelSelector({ onClose }) {
         body: JSON.stringify({ backend: backendKey, model: modelId }),
       });
       const json = await res.json();
-      setData(prev => prev ? { ...prev, active: json.active } : prev);
+      setData((prev) => (prev ? { ...prev, active: json.active } : prev));
     } catch (e) {
       console.error(e);
     } finally {
@@ -56,21 +58,33 @@ export default function ModelSelector({ onClose }) {
 
   return (
     <div className="mcp-overlay" onClick={() => onClose(data?.active)}>
-      <div className="mcp-panel model-panel" onClick={e => e.stopPropagation()}>
-
+      <div className="mcp-panel model-panel" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="mcp-panel-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span>🤖</span>
             <span>Model Selection</span>
             {data?.active.model && (
-              <span className="mcp-badge" style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span
+                className="mcp-badge"
+                style={{
+                  maxWidth: 160,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {data.active.model}
               </span>
             )}
           </div>
           <div style={{ display: 'flex', gap: '0.4rem' }}>
-            <button className="mcp-close-btn" onClick={handleRefresh} title="Refresh model lists" disabled={refreshing}>
+            <button
+              className="mcp-close-btn"
+              onClick={handleRefresh}
+              title="Refresh model lists"
+              disabled={refreshing}
+            >
               <RefreshCw size={14} className={refreshing ? 'mcp-spin' : ''} />
             </button>
             <button className="mcp-close-btn" onClick={() => onClose(data?.active)}>
@@ -82,59 +96,67 @@ export default function ModelSelector({ onClose }) {
         {/* Body */}
         <div className="mcp-panel-body">
           {loading && (
-            <div className="mcp-loading"><Loader size={16} className="mcp-spin" /> Loading backends…</div>
+            <div className="mcp-loading">
+              <Loader size={16} className="mcp-spin" /> Loading backends…
+            </div>
           )}
 
-          {!loading && data && Object.entries(data.backends).map(([key, backend]) => (
-            <div key={key} className="model-backend-section">
-              {/* Backend header */}
-              <div className={`model-backend-header ${data.active.backend === key ? 'model-backend-header--active' : ''}`}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span>{backend.icon}</span>
-                  <span className="model-backend-name">{backend.name}</span>
-                  <span className={`model-online-dot ${backend.online ? 'dot--online' : 'dot--offline'}`}>
-                    {backend.online ? '● online' : '● offline'}
-                  </span>
+          {!loading &&
+            data &&
+            Object.entries(data.backends).map(([key, backend]) => (
+              <div key={key} className="model-backend-section">
+                {/* Backend header */}
+                <div
+                  className={`model-backend-header ${data.active.backend === key ? 'model-backend-header--active' : ''}`}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>{backend.icon}</span>
+                    <span className="model-backend-name">{backend.name}</span>
+                    <span
+                      className={`model-online-dot ${backend.online ? 'dot--online' : 'dot--offline'}`}
+                    >
+                      {backend.online ? '● online' : '● offline'}
+                    </span>
+                  </div>
+                  <span className="model-backend-url">{backend.url}</span>
                 </div>
-                <span className="model-backend-url">{backend.url}</span>
+
+                {/* Model list */}
+                {!backend.online && (
+                  <div className="model-offline-msg">{backend.error || 'Cannot reach server'}</div>
+                )}
+
+                {backend.online && backend.models.length === 0 && (
+                  <div className="model-offline-msg">No models loaded</div>
+                )}
+
+                {backend.online && (
+                  <div className="model-list-scroll">
+                    {backend.models.map(({ id, contextLength }) => {
+                      const active = isActive(key, id);
+                      const busy = selecting === `${key}/${id}`;
+                      return (
+                        <button
+                          key={id}
+                          className={`model-item ${active ? 'model-item--active' : ''}`}
+                          onClick={() => selectModel(key, id)}
+                          disabled={!!selecting}
+                        >
+                          <span className="model-item-name">{id}</span>
+                          <span className="model-item-right">
+                            {contextLength && (
+                              <span className="model-ctx-badge">{fmtCtx(contextLength)}</span>
+                            )}
+                            {busy && <Loader size={12} className="mcp-spin" />}
+                            {active && !busy && <Check size={13} style={{ color: '#4ade80' }} />}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-
-              {/* Model list */}
-              {!backend.online && (
-                <div className="model-offline-msg">
-                  {backend.error || 'Cannot reach server'}
-                </div>
-              )}
-
-              {backend.online && backend.models.length === 0 && (
-                <div className="model-offline-msg">No models loaded</div>
-              )}
-
-              {backend.online && (
-                <div className="model-list-scroll">
-                  {backend.models.map(({ id, contextLength }) => {
-                    const active = isActive(key, id);
-                    const busy = selecting === `${key}/${id}`;
-                    return (
-                      <button
-                        key={id}
-                        className={`model-item ${active ? 'model-item--active' : ''}`}
-                        onClick={() => selectModel(key, id)}
-                        disabled={!!selecting}
-                      >
-                        <span className="model-item-name">{id}</span>
-                        <span className="model-item-right">
-                          {contextLength && <span className="model-ctx-badge">{fmtCtx(contextLength)}</span>}
-                          {busy && <Loader size={12} className="mcp-spin" />}
-                          {active && !busy && <Check size={13} style={{ color: '#4ade80' }} />}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ))}
+            ))}
         </div>
 
         <div className="mcp-panel-footer">

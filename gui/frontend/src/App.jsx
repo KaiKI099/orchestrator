@@ -1,38 +1,36 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, Settings, Square, Download, Trash2, Copy, Check, ChevronDown, Loader, Paperclip, FileText, X as XIcon, SlidersHorizontal } from 'lucide-react';
+import {
+  Send,
+  Settings,
+  Square,
+  Download,
+  Trash2,
+  Copy,
+  Check,
+  ChevronDown,
+  Loader,
+  Paperclip,
+  FileText,
+  X as XIcon,
+  SlidersHorizontal,
+} from 'lucide-react';
 import McpSettings from './McpSettings';
 import ModelSelector from './ModelSelector';
-
-// ── Code block with copy button ───────────────────────────────────────────────
-function CodeBlock({ children, className }) {
-  const [copied, setCopied] = useState(false);
-  const code = String(children).trimEnd();
-  const lang = (className || '').replace('language-', '') || 'code';
-
-  async function copy() {
-    await navigator.clipboard.writeText(code).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <div className="code-block">
-      <div className="code-block-header">
-        <span className="code-lang">{lang}</span>
-        <button className="code-copy-btn" onClick={copy} title="Copy code">
-          {copied ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
-        </button>
-      </div>
-      <pre><code className={className}>{children}</code></pre>
-    </div>
-  );
-}
+import Header from './components/Header';
+import CodeBlock from './components/CodeBlock';
+import PromptEditor from './components/PromptEditor';
+import ChatInput from './components/ChatInput';
 
 // ── Markdown components ───────────────────────────────────────────────────────
 const mdComponents = {
   code({ node, inline, className, children, ...props }) {
-    if (inline) return <code className={`inline-code`} {...props}>{children}</code>;
+    if (inline)
+      return (
+        <code className={`inline-code`} {...props}>
+          {children}
+        </code>
+      );
     return <CodeBlock className={className}>{children}</CodeBlock>;
   },
 };
@@ -49,7 +47,10 @@ function downloadText(filename, text) {
 }
 
 function conversationToMarkdown(messages) {
-  const lines = ['# Orchestrator Conversation\n', `_Exported ${new Date().toLocaleString()}_\n\n---\n`];
+  const lines = [
+    '# Orchestrator Conversation\n',
+    `_Exported ${new Date().toLocaleString()}_\n\n---\n`,
+  ];
   for (const msg of messages) {
     if (msg.role === 'user') {
       lines.push(`## 👤 You\n${msg.content}\n`);
@@ -73,7 +74,7 @@ export default function App() {
   const [activeModelLabel, setActiveModelLabel] = useState('');
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [copiedMsgIdx, setCopiedMsgIdx] = useState(null);
-  const [attachments, setAttachments] = useState([]);   // pending files for current prompt
+  const [attachments, setAttachments] = useState([]); // pending files for current prompt
   const [isVisionModel, setIsVisionModel] = useState(false);
   const [describingImage, setDescribingImage] = useState(false);
   const [showPromptEditor, setShowPromptEditor] = useState(false);
@@ -109,20 +110,25 @@ export default function App() {
   // Load active MCP count + current model on mount; also check vision capability
   useEffect(() => {
     fetch('http://localhost:3001/api/mcp')
-      .then(r => r.json())
-      .then(cfg => setActiveMcpCount(Object.values(cfg.servers).filter(s => s.running).length))
+      .then((r) => r.json())
+      .then((cfg) => setActiveMcpCount(Object.values(cfg.servers).filter((s) => s.running).length))
       .catch(() => {});
     fetch('http://localhost:3001/api/models')
-      .then(r => r.json())
-      .then(d => {
-        const backendNames = { lmstudio: 'LM Studio', ollama: 'Ollama', claude: 'Claude', nvidia: 'NVIDIA' };
+      .then((r) => r.json())
+      .then((d) => {
+        const backendNames = {
+          lmstudio: 'LM Studio',
+          ollama: 'Ollama',
+          claude: 'Claude',
+          nvidia: 'NVIDIA',
+        };
         setActiveBackendLabel(backendNames[d.active.backend] ?? d.active.backend);
         setActiveModelLabel(d.active.model || '');
       })
       .catch(() => {});
     fetch('http://localhost:3001/api/vision-check')
-      .then(r => r.json())
-      .then(d => setIsVisionModel(d.isVision))
+      .then((r) => r.json())
+      .then((d) => setIsVisionModel(d.isVision))
       .catch(() => {});
   }, []);
 
@@ -140,13 +146,18 @@ export default function App() {
         body: JSON.stringify({ backend: backendKey, model: defaultModel }),
       });
       const json = await res.json();
-      const backendNames = { lmstudio: 'LM Studio', ollama: 'Ollama', claude: 'Claude', nvidia: 'NVIDIA' };
+      const backendNames = {
+        lmstudio: 'LM Studio',
+        ollama: 'Ollama',
+        claude: 'Claude',
+        nvidia: 'NVIDIA',
+      };
       setActiveBackendLabel(backendNames[json.active.backend] ?? json.active.backend);
       setActiveModelLabel(json.active.model || '');
       // Re-check vision capability
       fetch('http://localhost:3001/api/vision-check')
-        .then(r => r.json())
-        .then(d => setIsVisionModel(d.isVision))
+        .then((r) => r.json())
+        .then((d) => setIsVisionModel(d.isVision))
         .catch(() => {});
     } catch (e) {
       console.error(`Failed to switch to ${label}:`, e);
@@ -155,20 +166,25 @@ export default function App() {
 
   function handleMcpClose(updatedConfig) {
     if (updatedConfig?.servers) {
-      setActiveMcpCount(Object.values(updatedConfig.servers).filter(s => s.running).length);
+      setActiveMcpCount(Object.values(updatedConfig.servers).filter((s) => s.running).length);
     }
     setShowMcp(false);
   }
 
   function handleModelClose(active) {
     if (active) {
-      const backendNames = { lmstudio: 'LM Studio', ollama: 'Ollama', claude: 'Claude', nvidia: 'NVIDIA' };
+      const backendNames = {
+        lmstudio: 'LM Studio',
+        ollama: 'Ollama',
+        claude: 'Claude',
+        nvidia: 'NVIDIA',
+      };
       setActiveBackendLabel(backendNames[active.backend] ?? active.backend);
       setActiveModelLabel(active.model || '');
       // Re-check vision capability for the newly selected model
       fetch('http://localhost:3001/api/vision-check')
-        .then(r => r.json())
-        .then(d => setIsVisionModel(d.isVision))
+        .then((r) => r.json())
+        .then((d) => setIsVisionModel(d.isVision))
         .catch(() => {});
     }
     setShowModelSelector(false);
@@ -200,7 +216,7 @@ export default function App() {
   function fileToBase64(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload  = () => resolve(reader.result.split(',')[1]); // strip data: prefix
+      reader.onload = () => resolve(reader.result.split(',')[1]); // strip data: prefix
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
@@ -210,22 +226,28 @@ export default function App() {
     const files = Array.from(e.target.files);
     e.target.value = ''; // allow re-selecting the same file
     for (const file of files) {
-      if (file.size > 20 * 1024 * 1024) { alert(`${file.name} is too large (max 20 MB)`); continue; }
+      if (file.size > 20 * 1024 * 1024) {
+        alert(`${file.name} is too large (max 20 MB)`);
+        continue;
+      }
       const isImage = file.type.startsWith('image/');
-      const isText  = file.type.startsWith('text/') || /\.(md|txt)$/i.test(file.name);
+      const isText = file.type.startsWith('text/') || /\.(md|txt)$/i.test(file.name);
       if (isImage) {
-        const base64  = await fileToBase64(file);
+        const base64 = await fileToBase64(file);
         const preview = `data:${file.type};base64,${base64}`;
-        setAttachments(prev => [...prev, { type: 'image', name: file.name, base64, mimeType: file.type, preview }]);
+        setAttachments((prev) => [
+          ...prev,
+          { type: 'image', name: file.name, base64, mimeType: file.type, preview },
+        ]);
       } else if (isText) {
         const content = await file.text();
-        setAttachments(prev => [...prev, { type: 'text', name: file.name, content }]);
+        setAttachments((prev) => [...prev, { type: 'text', name: file.name, content }]);
       }
     }
   }
 
   function removeAttachment(idx) {
-    setAttachments(prev => prev.filter((_, i) => i !== idx));
+    setAttachments((prev) => prev.filter((_, i) => i !== idx));
   }
 
   // ── Submit ─────────────────────────────────────────────────────────────────
@@ -238,13 +260,13 @@ export default function App() {
     const pendingAtts = [...attachments];
     setAttachments([]);
 
-    const imageAtts = pendingAtts.filter(a => a.type === 'image');
-    const textAtts  = pendingAtts.filter(a => a.type === 'text');
+    const imageAtts = pendingAtts.filter((a) => a.type === 'image');
+    const textAtts = pendingAtts.filter((a) => a.type === 'text');
 
     // Build text prefix from uploaded text/md files
-    const textPrefix = textAtts.map(ta =>
-      `[File: ${ta.name}]\n\`\`\`\n${ta.content}\n\`\`\`\n\n`
-    ).join('');
+    const textPrefix = textAtts
+      .map((ta) => `[File: ${ta.name}]\n\`\`\`\n${ta.content}\n\`\`\`\n\n`)
+      .join('');
 
     let userContent;
 
@@ -255,7 +277,10 @@ export default function App() {
         const combinedText = (textPrefix + inputMessage).trim();
         if (combinedText) parts.push({ type: 'text', text: combinedText });
         for (const ia of imageAtts) {
-          parts.push({ type: 'image_url', image_url: { url: `data:${ia.mimeType};base64,${ia.base64}` } });
+          parts.push({
+            type: 'image_url',
+            image_url: { url: `data:${ia.mimeType};base64,${ia.base64}` },
+          });
         }
         userContent = parts;
       } else {
@@ -265,9 +290,9 @@ export default function App() {
           const descParts = [];
           for (const ia of imageAtts) {
             const res = await fetch('http://localhost:3001/api/describe-image', {
-              method:  'POST',
+              method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body:    JSON.stringify({ base64: ia.base64, mimeType: ia.mimeType }),
+              body: JSON.stringify({ base64: ia.base64, mimeType: ia.mimeType }),
             });
             if (!res.ok) throw new Error(await res.text());
             const data = await res.json();
@@ -277,7 +302,14 @@ export default function App() {
         } catch (err) {
           setDescribingImage(false);
           setAttachments(pendingAtts); // give attachments back on error
-          setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Image description failed: ${err.message}`, isError: true }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: `⚠️ Image description failed: ${err.message}`,
+              isError: true,
+            },
+          ]);
           return;
         }
         setDescribingImage(false);
@@ -287,13 +319,13 @@ export default function App() {
     }
 
     const userMessage = {
-      role:        'user',
-      content:     userContent,               // string or multi-part array (vision)
-      displayText: inputMessage.trim(),        // always plain text for display
-      attachments: pendingAtts.map(a => ({ type: a.type, name: a.name, preview: a.preview })),
+      role: 'user',
+      content: userContent, // string or multi-part array (vision)
+      displayText: inputMessage.trim(), // always plain text for display
+      attachments: pendingAtts.map((a) => ({ type: a.type, name: a.name, preview: a.preview })),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setInputMessage('');
     setIsLoading(true);
 
@@ -302,15 +334,15 @@ export default function App() {
 
     try {
       const response = await fetch('http://localhost:3001/api/chat', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal:  controller.signal,
-        body:    JSON.stringify({
+        signal: controller.signal,
+        body: JSON.stringify({
           // content may be string (text) or array (vision) — both are valid OpenAI format
-          messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content })),
+          messages: [...messages, userMessage].map((m) => ({ role: m.role, content: m.content })),
           mode: activeMode,
           ...(customSystemPrompt ? { customSystemPrompt } : {}),
-        })
+        }),
       });
 
       if (!response.ok) throw new Error('Network response was not ok');
@@ -320,7 +352,10 @@ export default function App() {
       let assistantContent = '';
       let buffer = '';
 
-      setMessages(prev => [...prev, { role: 'assistant', content: '', isTyping: true, toolCalls: [], delegations: [] }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: '', isTyping: true, toolCalls: [], delegations: [] },
+      ]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -333,7 +368,10 @@ export default function App() {
         let currentEvent = null;
         for (const line of lines) {
           const trimmed = line.trim();
-          if (!trimmed) { currentEvent = null; continue; }
+          if (!trimmed) {
+            currentEvent = null;
+            continue;
+          }
 
           if (trimmed.startsWith('event: ')) {
             currentEvent = trimmed.slice(7);
@@ -349,24 +387,23 @@ export default function App() {
 
               if (currentEvent === 'agent') {
                 // Initial routing event — which agent/orchestrator is handling this
-                setMessages(prev => {
+                setMessages((prev) => {
                   const next = [...prev];
                   next[next.length - 1] = { ...next[next.length - 1], agent: parsed };
                   return next;
                 });
-
               } else if (currentEvent === 'delegating') {
                 // Orchestrator dispatched a sub-agent (queued or running immediately)
-                setMessages(prev => {
+                setMessages((prev) => {
                   const next = [...prev];
                   const last = next[next.length - 1];
                   const entry = {
                     agent_id: parsed.agent_id,
-                    name:     parsed.name,
-                    emoji:    parsed.emoji,
-                    model:    parsed.model,
-                    backend:  parsed.backend,
-                    status:   parsed.queued ? 'queued' : 'running',
+                    name: parsed.name,
+                    emoji: parsed.emoji,
+                    model: parsed.model,
+                    backend: parsed.backend,
+                    status: parsed.queued ? 'queued' : 'running',
                   };
                   next[next.length - 1] = {
                     ...last,
@@ -374,15 +411,14 @@ export default function App() {
                   };
                   return next;
                 });
-
               } else if (currentEvent === 'agent_start') {
                 // A queued agent just got the model and started executing
-                setMessages(prev => {
+                setMessages((prev) => {
                   const next = [...prev];
                   const last = next[next.length - 1];
                   next[next.length - 1] = {
                     ...last,
-                    delegations: (last.delegations || []).map(d =>
+                    delegations: (last.delegations || []).map((d) =>
                       d.agent_id === parsed.agent_id && d.status === 'queued'
                         ? { ...d, status: 'running' }
                         : d
@@ -390,15 +426,14 @@ export default function App() {
                   };
                   return next;
                 });
-
               } else if (currentEvent === 'agent_done') {
                 // Sub-agent finished — record duration
-                setMessages(prev => {
+                setMessages((prev) => {
                   const next = [...prev];
                   const last = next[next.length - 1];
                   next[next.length - 1] = {
                     ...last,
-                    delegations: (last.delegations || []).map(d =>
+                    delegations: (last.delegations || []).map((d) =>
                       d.agent_id === parsed.agent_id && d.status === 'running'
                         ? { ...d, status: 'done', duration_ms: parsed.duration_ms }
                         : d
@@ -406,42 +441,47 @@ export default function App() {
                   };
                   return next;
                 });
-
               } else if (currentEvent === 'tool') {
                 // Only show top-level tool calls (sub-agent tools carry an agent_id — skip them)
                 if (!parsed.agent_id) {
-                  setMessages(prev => {
+                  setMessages((prev) => {
                     const next = [...prev];
                     const last = next[next.length - 1];
-                    next[next.length - 1] = { ...last, toolCalls: [...(last.toolCalls || []), parsed] };
+                    next[next.length - 1] = {
+                      ...last,
+                      toolCalls: [...(last.toolCalls || []), parsed],
+                    };
                     return next;
                   });
                 }
-
               } else if (parsed.choices?.[0]?.delta?.content) {
                 assistantContent += parsed.choices[0].delta.content;
-                setMessages(prev => {
+                setMessages((prev) => {
                   const next = [...prev];
-                  next[next.length - 1] = { ...next[next.length - 1], content: assistantContent, isTyping: false };
+                  next[next.length - 1] = {
+                    ...next[next.length - 1],
+                    content: assistantContent,
+                    isTyping: false,
+                  };
                   return next;
                 });
-
               } else if (parsed.emoji !== undefined || parsed.id === 'orchestrator') {
-                setMessages(prev => {
+                setMessages((prev) => {
                   const next = [...prev];
                   next[next.length - 1] = { ...next[next.length - 1], agent: parsed };
                   return next;
                 });
               }
-            } catch { /* skip */ }
+            } catch {
+              /* skip */
+            }
           }
         }
       }
-
     } catch (err) {
       if (err.name === 'AbortError') {
         // Mark last message as stopped (keep partial content)
-        setMessages(prev => {
+        setMessages((prev) => {
           const next = [...prev];
           const last = next[next.length - 1];
           if (last?.role === 'assistant') {
@@ -450,16 +490,19 @@ export default function App() {
           return next;
         });
       } else {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: '⚠️ Error: Cannot connect to Backend/LM Studio.',
-          isError: true,
-        }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '⚠️ Error: Cannot connect to Backend/LM Studio.',
+            isError: true,
+          },
+        ]);
       }
     } finally {
       setIsLoading(false);
       abortControllerRef.current = null;
-      setMessages(prev => {
+      setMessages((prev) => {
         const next = [...prev];
         const last = next[next.length - 1];
         if (last) next[next.length - 1] = { ...last, isTyping: false };
@@ -471,92 +514,78 @@ export default function App() {
   return (
     <div className="app-container">
       {/* ── Header ── */}
-      <header className="header">
-        <div className="mode-tabs">
-          <button className={`mode-tab ${activeMode === 'marketing' ? 'mode-tab--active' : ''}`}
-            onClick={() => { setActiveMode('marketing'); setMessages([]); }}>
-            🤖 <span>Orchestrator</span>
-          </button>
-          <button className={`mode-tab ${activeMode === 'coder' ? 'mode-tab--active' : ''}`}
-            onClick={() => { setActiveMode('coder'); setMessages([]); }}>
-            💻 <span>ProCoder</span>
-          </button>
-        </div>
-        <div className="header-actions">
-          {messages.length > 0 && (
-            <>
-              <button className="hdr-btn" onClick={handleDownload} title="Download conversation">
-                <Download size={15} />
-              </button>
-              <button className="hdr-btn hdr-btn--danger" onClick={handleClear} title="Clear conversation">
-                <Trash2 size={15} />
-              </button>
-            </>
-          )}
-          {/* Quick-switch backend buttons */}
-          <button
-            className={`backend-quick-btn ${activeBackendLabel === 'Claude' ? 'backend-quick-btn--active' : ''}`}
-            onClick={() => quickSwitchBackend('claude', 'Claude')}
-            title="Switch to Claude (Anthropic)"
-          >
-            <span className="backend-quick-icon">🟣</span>
-            <span>Claude</span>
-          </button>
-          <button
-            className={`backend-quick-btn ${activeBackendLabel === 'NVIDIA' ? 'backend-quick-btn--active' : ''}`}
-            onClick={() => quickSwitchBackend('nvidia', 'NVIDIA')}
-            title="Switch to NVIDIA (Kimi K2.5)"
-          >
-            <span className="backend-quick-icon">🟢</span>
-            <span>NVIDIA</span>
-          </button>
-          {/* Model / backend switcher */}
-          <button
-            className="model-btn"
-            onClick={() => setShowModelSelector(true)}
-            title="Switch model or backend"
-          >
-            <span className="model-btn-backend">{activeBackendLabel}</span>
-            {activeModelLabel && (
-              <span className="model-btn-name">{activeModelLabel.split(':')[0].split('/').pop()}</span>
-            )}
-            <ChevronDown size={12} style={{ opacity: 0.6 }} />
-          </button>
-          <button
-            className={`mcp-settings-btn ${activeMcpCount > 0 ? 'mcp-settings-btn--active' : ''}`}
-            onClick={() => setShowMcp(true)}
-            title="MCP Servers"
-          >
-            <Settings size={15} />
-            <span>MCP</span>
-            {activeMcpCount > 0 && <span className="mcp-settings-badge">{activeMcpCount}</span>}
-          </button>
-        </div>
-      </header>
+      <Header
+        activeMode={activeMode}
+        setActiveMode={setActiveMode}
+        onClear={handleClear}
+        onDownload={handleDownload}
+        messages={messages}
+        activeBackendLabel={activeBackendLabel}
+        activeModelLabel={activeModelLabel}
+        activeMcpCount={activeMcpCount}
+        onQuickSwitchBackend={quickSwitchBackend}
+        onOpenModelSelector={() => setShowModelSelector(true)}
+        onOpenMcpSettings={() => setShowMcp(true)}
+      />
 
       {/* ── Chat area ── */}
       <main className="chat-container" ref={chatContainerRef}>
         {messages.length === 0 && (
           <div className="empty-state">
-            {activeMode === 'marketing' ? (<>
-              <div className="empty-state-icon">🤖</div>
-              <h2>Marketing Orchestrator</h2>
-              <p>9 specialist agents ready. Ask about keywords, funnels, competitors or ideas.</p>
-              <div className="agent-pills">
-                {[['🔍','Keywords'],['🛒','Buy Intent'],['📢','Ads'],['🔗','Backlinks'],['🎯','Competitors'],['🌊','Funnels'],['💡','Ideas'],['🌍','Regions'],['🔬','QA']].map(([e,n]) => (
-                  <span key={n} className="agent-pill">{e} {n}</span>
-                ))}
-              </div>
-            </>) : (<>
-              <div className="empty-state-icon">💻</div>
-              <h2>ProCoder</h2>
-              <p>14 specialist agents ready. Ask about architecture, code, tests, security or deployment.</p>
-              <div className="agent-pills">
-                {[['🏗️','Architect'],['🎨','UX'],['⬆️','Upgrade'],['🟩','Node.js'],['🐍','Python'],['🌐','Fullstack'],['🚀','DevOps'],['🗄️','Database'],['🧪','Tests'],['🔒','Security'],['🔬','Review'],['✂️','Slimpro'],['📝','Docs']].map(([e,n]) => (
-                  <span key={n} className="agent-pill">{e} {n}</span>
-                ))}
-              </div>
-            </>)}
+            {activeMode === 'marketing' ? (
+              <>
+                <div className="empty-state-icon">🤖</div>
+                <h2>Marketing Orchestrator</h2>
+                <p>9 specialist agents ready. Ask about keywords, funnels, competitors or ideas.</p>
+                <div className="agent-pills">
+                  {[
+                    ['🔍', 'Keywords'],
+                    ['🛒', 'Buy Intent'],
+                    ['📢', 'Ads'],
+                    ['🔗', 'Backlinks'],
+                    ['🎯', 'Competitors'],
+                    ['🌊', 'Funnels'],
+                    ['💡', 'Ideas'],
+                    ['🌍', 'Regions'],
+                    ['🔬', 'QA'],
+                  ].map(([e, n]) => (
+                    <span key={n} className="agent-pill">
+                      {e} {n}
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="empty-state-icon">💻</div>
+                <h2>ProCoder</h2>
+                <p>
+                  14 specialist agents ready. Ask about architecture, code, tests, security or
+                  deployment.
+                </p>
+                <div className="agent-pills">
+                  {[
+                    ['🏗️', 'Architect'],
+                    ['🎨', 'UX'],
+                    ['⬆️', 'Upgrade'],
+                    ['🟩', 'Node.js'],
+                    ['🐍', 'Python'],
+                    ['🌐', 'Fullstack'],
+                    ['🚀', 'DevOps'],
+                    ['🗄️', 'Database'],
+                    ['🧪', 'Tests'],
+                    ['🔒', 'Security'],
+                    ['🔬', 'Review'],
+                    ['✂️', 'Slimpro'],
+                    ['📝', 'Docs'],
+                  ].map(([e, n]) => (
+                    <span key={n} className="agent-pill">
+                      {e} {n}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -585,9 +614,13 @@ export default function App() {
                         </span>
                       )}
                       <span className="delegation-status">
-                        {d.status === 'queued'  && '⏳ queued'}
-                        {d.status === 'running' && <><Loader size={11} className="mcp-spin" /> running…</>}
-                        {d.status === 'done'    && `✓ ${(d.duration_ms / 1000).toFixed(1)}s`}
+                        {d.status === 'queued' && '⏳ queued'}
+                        {d.status === 'running' && (
+                          <>
+                            <Loader size={11} className="mcp-spin" /> running…
+                          </>
+                        )}
+                        {d.status === 'done' && `✓ ${(d.duration_ms / 1000).toFixed(1)}s`}
                       </span>
                     </div>
                   ))}
@@ -607,17 +640,29 @@ export default function App() {
               {/* Attachment previews (user messages with uploaded files) */}
               {msg.role === 'user' && msg.attachments?.length > 0 && (
                 <div className="msg-attachments">
-                  {msg.attachments.map((a, i) => (
-                    a.type === 'image'
-                      ? <img key={i} src={a.preview} alt={a.name} className="msg-img-preview" title={a.name} />
-                      : <span key={i} className="msg-file-tag"><FileText size={12} /> {a.name}</span>
-                  ))}
+                  {msg.attachments.map((a, i) =>
+                    a.type === 'image' ? (
+                      <img
+                        key={i}
+                        src={a.preview}
+                        alt={a.name}
+                        className="msg-img-preview"
+                        title={a.name}
+                      />
+                    ) : (
+                      <span key={i} className="msg-file-tag">
+                        <FileText size={12} /> {a.name}
+                      </span>
+                    )
+                  )}
                 </div>
               )}
 
               {msg.isTyping && !msg.content ? (
                 <div className="typing-indicator">
-                  <div className="dot" /><div className="dot" /><div className="dot" />
+                  <div className="dot" />
+                  <div className="dot" />
+                  <div className="dot" />
                 </div>
               ) : (
                 <div className="markdown-wrapper">
@@ -644,7 +689,8 @@ export default function App() {
                   <button
                     className="msg-action-btn"
                     onClick={() => {
-                      const label = msg.role === 'user' ? 'user' : (msg.agent?.name || 'orchestrator');
+                      const label =
+                        msg.role === 'user' ? 'user' : msg.agent?.name || 'orchestrator';
                       downloadText(`${label}-${idx}.md`, msg.content);
                     }}
                     title="Download message"
@@ -667,137 +713,55 @@ export default function App() {
       )}
 
       {/* ── Input ── */}
-      <footer className="input-container">
-        {/* Attachment chips (pending files not yet sent) */}
-        {attachments.length > 0 && (
-          <div className="attachment-area">
-            {attachments.map((a, i) => (
-              <div key={i} className={`attachment-chip attachment-chip--${a.type}`}>
-                {a.type === 'image'
-                  ? <img src={a.preview} alt={a.name} className="attachment-thumb" />
-                  : <FileText size={14} />}
-                <span className="attachment-chip-name">{a.name}</span>
-                {!isVisionModel && a.type === 'image' && (
-                  <span className="attachment-chip-hint" title="Will be described by Qwen3vision">👁</span>
-                )}
-                <button className="attachment-chip-remove" onClick={() => removeAttachment(i)} title="Remove">
-                  <XIcon size={11} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+      <ChatInput
+        inputMessage={inputMessage}
+        setInputMessage={setInputMessage}
+        attachments={attachments}
+        setAttachments={setAttachments}
+        isLoading={isLoading}
+        describingImage={describingImage}
+        isVisionModel={isVisionModel}
+        customSystemPrompt={customSystemPrompt}
+        activeMode={activeMode}
+        onFileSelect={handleFileSelect}
+        onSubmit={() => handleSubmit({ preventDefault: () => {} })}
+        onStop={handleStop}
+        onRemoveAttachment={removeAttachment}
+      />
 
-        <div className="input-row">
-          <form onSubmit={handleSubmit} className="input-box">
-            {/* Hidden file input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,.txt,.md,text/plain,text/markdown"
-              multiple
-              style={{ display: 'none' }}
-              onChange={handleFileSelect}
-            />
-            {/* Upload button */}
-            <button
-              type="button"
-              className="upload-btn"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading || describingImage}
-              title="Attach image or text file"
-            >
-              <Paperclip size={16} />
-            </button>
-
-            <input
-              type="text"
-              placeholder={
-                describingImage ? 'Describing image with Qwen3vision…' :
-                isLoading       ? 'Generating…' :
-                customSystemPrompt ? 'Custom prompt active — type your message…' :
-                activeMode === 'coder' ? 'Describe your coding task…' :
-                                  'Type your marketing assignment here…'
-              }
-              value={inputMessage}
-              onChange={e => setInputMessage(e.target.value)}
-              disabled={isLoading || describingImage}
-            />
-            {isLoading || describingImage ? (
-              <button type="button" className="stop-btn" onClick={handleStop} title="Stop generation"
-                disabled={describingImage}>
-                {describingImage
-                  ? <Loader size={16} className="mcp-spin" />
-                  : <Square size={16} fill="currentColor" />}
-              </button>
-            ) : (
-              <button type="submit" disabled={!inputMessage.trim() && attachments.length === 0}>
-                <Send size={18} />
-              </button>
-            )}
-          </form>
-          <button
-            className={`prompt-config-btn ${customSystemPrompt ? 'prompt-config-btn--active' : ''}`}
-            onClick={() => { setPromptDraft(customSystemPrompt); setShowPromptEditor(true); }}
-            title={customSystemPrompt ? 'Custom system prompt active — click to edit' : 'Set custom system prompt'}
-          >
-            <SlidersHorizontal size={16} />
-          </button>
-        </div>
-      </footer>
+      {/* Prompt config button */}
+      <div className="input-row" style={{ borderTop: 'none', paddingTop: 0 }}>
+        <button
+          className={`prompt-config-btn ${customSystemPrompt ? 'prompt-config-btn--active' : ''}`}
+          onClick={() => {
+            setPromptDraft(customSystemPrompt);
+            setShowPromptEditor(true);
+          }}
+          title={
+            customSystemPrompt
+              ? 'Custom system prompt active — click to edit'
+              : 'Set custom system prompt'
+          }
+          style={{ marginLeft: 'auto' }}
+        >
+          <SlidersHorizontal size={16} />
+        </button>
+      </div>
 
       {showMcp && <McpSettings onClose={handleMcpClose} />}
       {showModelSelector && <ModelSelector onClose={handleModelClose} />}
 
       {/* ── System Prompt Editor Modal ── */}
-      {showPromptEditor && (
-        <div className="mcp-overlay" onClick={() => setShowPromptEditor(false)}>
-          <div className="mcp-panel prompt-panel" onClick={e => e.stopPropagation()}>
-            <div className="mcp-panel-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <SlidersHorizontal size={15} />
-                <span>System Prompt</span>
-                {customSystemPrompt && <span className="mcp-badge">Custom</span>}
-              </div>
-              <button className="mcp-close-btn" onClick={() => setShowPromptEditor(false)}>
-                <XIcon size={15} />
-              </button>
-            </div>
-            <div className="mcp-panel-body prompt-editor-body">
-              <textarea
-                className="prompt-textarea"
-                value={promptDraft}
-                onChange={e => setPromptDraft(e.target.value)}
-                placeholder="Leave empty to use the default Orchestrator prompt.&#10;&#10;Write a custom system prompt here to override it. MCP tools will be appended automatically."
-                spellCheck={false}
-              />
-            </div>
-            <div className="prompt-editor-footer">
-              <span className="prompt-footer-hint">
-                {promptDraft.trim()
-                  ? `${promptDraft.trim().length} chars — replaces Orchestrator prompt`
-                  : 'Empty — default Orchestrator prompt will be used'}
-              </span>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                {customSystemPrompt && (
-                  <button
-                    className="prompt-editor-btn prompt-editor-btn--reset"
-                    onClick={() => { setCustomSystemPrompt(''); setPromptDraft(''); setShowPromptEditor(false); }}
-                  >
-                    Reset to Default
-                  </button>
-                )}
-                <button
-                  className="prompt-editor-btn prompt-editor-btn--save"
-                  onClick={() => { setCustomSystemPrompt(promptDraft.trim()); setShowPromptEditor(false); }}
-                >
-                  {promptDraft.trim() ? 'Apply Prompt' : 'Use Default'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <PromptEditor
+        show={showPromptEditor}
+        onClose={() => setShowPromptEditor(false)}
+        draft={promptDraft}
+        setDraft={setPromptDraft}
+        customSystemPrompt={customSystemPrompt}
+        onSave={(val) => {
+          setCustomSystemPrompt(val);
+        }}
+      />
     </div>
   );
 }

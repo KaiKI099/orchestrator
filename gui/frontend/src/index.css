@@ -21,8 +21,9 @@ body {
   font-family: 'Inter', sans-serif;
   background-color: var(--bg-primary);
   color: var(--text-main);
-  background-image: radial-gradient(circle at top right, rgba(106, 90, 205, 0.15), transparent 40%),
-                    radial-gradient(circle at bottom left, rgba(72, 61, 139, 0.15), transparent 40%);
+  background-image:
+    radial-gradient(circle at top right, rgba(106, 90, 205, 0.15), transparent 40%),
+    radial-gradient(circle at bottom left, rgba(72, 61, 139, 0.15), transparent 40%);
   background-attachment: fixed;
   display: flex;
   justify-content: center;
@@ -210,7 +211,9 @@ body {
   padding: 0.5rem;
   border-radius: 16px;
   border: 1px solid var(--border-color);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
 .input-box:focus-within {
@@ -237,7 +240,9 @@ body {
   padding: 0 1.5rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s ease, background 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -281,8 +286,13 @@ body {
 }
 
 /* ── Prompt editor modal ─────────────────────────────────────────────────── */
-.prompt-panel { width: 600px; max-height: 80vh; }
-.prompt-editor-body { padding: 0 !important; }
+.prompt-panel {
+  width: 600px;
+  max-height: 80vh;
+}
+.prompt-editor-body {
+  padding: 0 !important;
+}
 .prompt-textarea {
   width: 100%;
   min-height: 280px;
@@ -329,18 +339,22 @@ body {
   color: white;
   border-color: var(--accent-color);
 }
-.prompt-editor-btn--save:hover { background: #5b4dbb; }
+.prompt-editor-btn--save:hover {
+  background: #5b4dbb;
+}
 .prompt-editor-btn--reset {
   background: transparent;
   color: var(--text-muted);
 }
 .prompt-editor-btn--reset:hover {
   color: var(--text-main);
-  border-color: rgba(255,255,255,0.25);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 /* ── Markdown ─────────────────────────────────────────────────────────────── */
-.markdown-wrapper h1, .markdown-wrapper h2, .markdown-wrapper h3 {
+.markdown-wrapper h1,
+.markdown-wrapper h2,
+.markdown-wrapper h3 {
   font-family: 'Outfit', sans-serif;
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
@@ -348,8 +362,11 @@ body {
 }
 .markdown-wrapper h1:first-child,
 .markdown-wrapper h2:first-child,
-.markdown-wrapper h3:first-child { margin-top: 0; }
-.markdown-wrapper ul, .markdown-wrapper ol {
+.markdown-wrapper h3:first-child {
+  margin-top: 0;
+}
+.markdown-wrapper ul,
+.markdown-wrapper ol {
   padding-left: 1.5rem;
   margin-bottom: 1rem;
 }
@@ -359,12 +376,15 @@ body {
   margin: 1rem 0;
   font-size: 0.875rem;
 }
-.markdown-wrapper th, .markdown-wrapper td {
+.markdown-wrapper th,
+.markdown-wrapper td {
   border: 1px solid var(--border-color);
   padding: 0.5rem 0.75rem;
   text-align: left;
 }
-.markdown-wrapper th { background: rgba(255,255,255,0.05); }
+.markdown-wrapper th {
+  background: rgba(255, 255, 255, 0.05);
+}
 .markdown-wrapper blockquote {
   border-left: 3px solid var(--accent-color);
   padding-left: 1rem;
@@ -375,7 +395,7 @@ body {
 /* inline code */
 .inline-code {
   font-family: monospace;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
   font-size: 0.88em;
@@ -386,7 +406,7 @@ body {
   border-radius: 10px;
   overflow: hidden;
   margin: 0.75rem 0;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background: #0d0d14;
 }
 .code-block-header {
@@ -394,8 +414,8 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0.4rem 0.85rem;
-  background: rgba(255,255,255,0.05);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 .code-lang {
   font-size: 0.72rem;
@@ -410,14 +430,17 @@ body {
   gap: 0.3rem;
   font-size: 0.72rem;
   background: transparent;
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 5px;
   color: var(--text-muted);
   padding: 0.2rem 0.5rem;
   cursor: pointer;
   transition: all 0.2s;
 }
-.code-copy-btn:hover { border-color: var(--accent-color); color: var(--accent-color); }
+.code-copy-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
 .code-block pre {
   margin: 0;
   padding: 1rem 1.25rem;
@@ -426,7 +449,11 @@ body {
   font-size: 0.85rem;
   line-height: 1.6;
 }
-.code-block pre code { background: transparent; padding: 0; border-radius: 0; }
+.code-block pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
 
 /* ── Attachment previews inside chat bubbles ────────────────────────────── */
 .msg-attachments {
@@ -449,7 +476,7 @@ body {
   gap: 0.3rem;
   font-size: 0.78rem;
   color: var(--text-muted);
-  background: rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.06);
   padding: 0.2rem 0.5rem;
   border-radius: 5px;
   border: 1px solid var(--border);
@@ -469,11 +496,13 @@ body {
   padding: 0.25rem 0.5rem;
   border-radius: 8px;
   font-size: 0.78rem;
-  background: rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border);
   max-width: 220px;
 }
-.attachment-chip--image { border-color: rgba(99,102,241,0.35); }
+.attachment-chip--image {
+  border-color: rgba(99, 102, 241, 0.35);
+}
 .attachment-thumb {
   width: 32px;
   height: 32px;
@@ -489,7 +518,11 @@ body {
   min-width: 0;
   color: var(--text-muted);
 }
-.attachment-chip-hint { font-size: 0.75rem; opacity: 0.7; flex-shrink: 0; }
+.attachment-chip-hint {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
 .attachment-chip-remove {
   background: none;
   border: none;
@@ -502,7 +535,9 @@ body {
   opacity: 0.6;
   transition: opacity 0.15s;
 }
-.attachment-chip-remove:hover { opacity: 1; }
+.attachment-chip-remove:hover {
+  opacity: 1;
+}
 
 /* ── Upload button (paperclip) ───────────────────────────────────────────── */
 .upload-btn {
@@ -517,8 +552,13 @@ body {
   opacity: 0.55;
   transition: opacity 0.15s;
 }
-.upload-btn:hover:not(:disabled) { opacity: 1; }
-.upload-btn:disabled             { cursor: default; opacity: 0.25; }
+.upload-btn:hover:not(:disabled) {
+  opacity: 1;
+}
+.upload-btn:disabled {
+  cursor: default;
+  opacity: 0.25;
+}
 
 /* ── Message action bar ──────────────────────────────────────────────────── */
 .msg-actions {
@@ -528,13 +568,15 @@ body {
   opacity: 0;
   transition: opacity 0.2s;
 }
-.message-bubble:hover .msg-actions { opacity: 1; }
+.message-bubble:hover .msg-actions {
+  opacity: 1;
+}
 .msg-action-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   font-size: 0.72rem;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   color: var(--text-muted);
@@ -542,7 +584,10 @@ body {
   cursor: pointer;
   transition: all 0.2s;
 }
-.msg-action-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-main); }
+.msg-action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+}
 
 /* ── Stopped badge ───────────────────────────────────────────────────────── */
 .stopped-badge {
@@ -572,8 +617,14 @@ body {
   align-items: center;
   transition: all 0.2s;
 }
-.hdr-btn:hover { border-color: var(--accent-color); color: var(--text-main); }
-.hdr-btn--danger:hover { border-color: #f87171; color: #f87171; }
+.hdr-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--text-main);
+}
+.hdr-btn--danger:hover {
+  border-color: #f87171;
+  color: #f87171;
+}
 
 /* ── Stop button ─────────────────────────────────────────────────────────── */
 .stop-btn {
@@ -590,7 +641,9 @@ body {
   transition: all 0.2s;
   flex-shrink: 0;
 }
-.stop-btn:hover { background: rgba(248, 113, 113, 0.25); }
+.stop-btn:hover {
+  background: rgba(248, 113, 113, 0.25);
+}
 
 /* ── Scroll-to-bottom button ─────────────────────────────────────────────── */
 .scroll-to-bottom {
@@ -607,11 +660,14 @@ body {
   justify-content: center;
   color: var(--text-muted);
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   transition: all 0.2s;
   animation: fadeIn 0.2s ease;
 }
-.scroll-to-bottom:hover { color: var(--text-main); border-color: var(--accent-color); }
+.scroll-to-bottom:hover {
+  color: var(--text-main);
+  border-color: var(--accent-color);
+}
 
 /* ── Empty state ─────────────────────────────────────────────────────────── */
 .empty-state {
@@ -620,14 +676,20 @@ body {
   color: var(--text-muted);
   max-width: 480px;
 }
-.empty-state-icon { font-size: 3rem; margin-bottom: 1rem; }
+.empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
 .empty-state h2 {
   font-family: 'Outfit', sans-serif;
   font-size: 1.4rem;
   color: var(--text-main);
   margin-bottom: 0.5rem;
 }
-.empty-state p { font-size: 0.9rem; margin-bottom: 1.25rem; }
+.empty-state p {
+  font-size: 0.9rem;
+  margin-bottom: 1.25rem;
+}
 .agent-pills {
   display: flex;
   flex-wrap: wrap;
@@ -657,17 +719,35 @@ body {
   animation: typing 1.4s infinite ease-in-out both;
 }
 
-.dot:nth-child(1) { animation-delay: -0.32s; }
-.dot:nth-child(2) { animation-delay: -0.16s; }
+.dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+.dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
 
 @keyframes typing {
-  0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
-  40% { transform: scale(1); opacity: 1; }
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Model selector button ──────────────────────────────────────────────────── */
@@ -679,7 +759,7 @@ body {
   padding: 0.3rem 0.65rem;
   border-radius: 10px;
   border: 1px solid var(--border-color);
-  background: rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 500;
@@ -688,8 +768,8 @@ body {
   white-space: nowrap;
 }
 .backend-quick-btn:hover {
-  border-color: rgba(255,255,255,0.25);
-  background: rgba(255,255,255,0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text-main);
 }
 .backend-quick-btn--active {
@@ -713,14 +793,17 @@ body {
   padding: 0.35rem 0.75rem;
   border-radius: 10px;
   border: 1px solid var(--border-color);
-  background: rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text-main);
   font-size: 0.82rem;
   cursor: pointer;
   transition: all 0.2s;
   max-width: 220px;
 }
-.model-btn:hover { border-color: var(--accent-color); background: rgba(106, 90, 205, 0.1); }
+.model-btn:hover {
+  border-color: var(--accent-color);
+  background: rgba(106, 90, 205, 0.1);
+}
 .model-btn-backend {
   font-weight: 600;
   color: var(--accent-color);
@@ -737,7 +820,9 @@ body {
 }
 
 /* ── Model panel ─────────────────────────────────────────────────────────────── */
-.model-panel { width: 500px; }
+.model-panel {
+  width: 500px;
+}
 
 .model-backend-section {
   border: 1px solid var(--border-color);
@@ -750,7 +835,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0.65rem 1rem;
-  background: rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.04);
   border-bottom: 1px solid var(--border-color);
 }
 .model-backend-header--active {
@@ -770,8 +855,12 @@ body {
   font-size: 0.72rem;
   font-weight: 500;
 }
-.dot--online  { color: #4ade80; }
-.dot--offline { color: #f87171; }
+.dot--online {
+  color: #4ade80;
+}
+.dot--offline {
+  color: #f87171;
+}
 
 .model-offline-msg {
   padding: 0.6rem 1rem;
@@ -788,7 +877,7 @@ body {
   padding: 0.55rem 1rem;
   background: transparent;
   border: none;
-  border-top: 1px solid rgba(255,255,255,0.04);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
   color: var(--text-main);
   font-size: 0.85rem;
   font-family: monospace;
@@ -802,15 +891,30 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--accent-color) transparent;
 }
-.model-item:hover { background: rgba(255,255,255,0.05); }
-.model-item--active { background: rgba(106, 90, 205, 0.12); }
-.model-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.model-item-right { display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0; margin-left: 0.5rem; }
+.model-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.model-item--active {
+  background: rgba(106, 90, 205, 0.12);
+}
+.model-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-item-right {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+}
 .model-ctx-badge {
   font-size: 0.67rem;
   font-family: monospace;
   color: var(--text-muted);
-  background: rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.06);
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
   white-space: nowrap;
@@ -869,23 +973,45 @@ body {
   font-size: 0.79rem;
   padding: 0.3rem 0.55rem;
   border-radius: 7px;
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid transparent;
-  transition: background 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
 }
-.delegation-item--queued  { opacity: 0.45; }
-.delegation-item--running { background: rgba(99,102,241,0.08); border-color: rgba(99,102,241,0.2); }
-.delegation-item--done    { opacity: 0.65; }
+.delegation-item--queued {
+  opacity: 0.45;
+}
+.delegation-item--running {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+.delegation-item--done {
+  opacity: 0.65;
+}
 
-.delegation-arrow { color: var(--text-muted); font-size: 0.75rem; flex-shrink: 0; }
-.delegation-emoji { flex-shrink: 0; }
-.delegation-name  { font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.delegation-arrow {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+.delegation-emoji {
+  flex-shrink: 0;
+}
+.delegation-name {
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .delegation-model {
   font-size: 0.68rem;
   font-family: monospace;
   color: var(--text-muted);
-  background: rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.06);
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
   flex-shrink: 0;
@@ -900,8 +1026,12 @@ body {
   white-space: nowrap;
   flex-shrink: 0;
 }
-.delegation-item--done    .delegation-status { color: #4ade80; }
-.delegation-item--running .delegation-status { color: #818cf8; }
+.delegation-item--done .delegation-status {
+  color: #4ade80;
+}
+.delegation-item--running .delegation-status {
+  color: #818cf8;
+}
 
 /* ── Tool call chips inside messages ────────────────────────────────────────── */
 .tool-calls {
@@ -935,8 +1065,12 @@ body {
   animation: fadeIn 0.15s ease;
 }
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .mcp-panel {
@@ -946,15 +1080,21 @@ body {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 18px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: slideUp 0.2s ease;
 }
 @keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .mcp-panel-header {
@@ -986,7 +1126,9 @@ body {
   align-items: center;
   transition: color 0.2s;
 }
-.mcp-close-btn:hover { color: var(--text-main); }
+.mcp-close-btn:hover {
+  color: var(--text-main);
+}
 
 .mcp-panel-body {
   padding: 0.75rem;
@@ -1004,7 +1146,7 @@ body {
   padding: 0.75rem 0.85rem;
   border-radius: 12px;
   border: 1px solid transparent;
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   transition: all 0.2s ease;
 }
 .mcp-row--on {
@@ -1037,8 +1179,12 @@ body {
   margin-top: 0.2rem;
   font-weight: 500;
 }
-.mcp-row-status--ok { color: #4ade80; }
-.mcp-row-status--pending { color: #facc15; }
+.mcp-row-status--ok {
+  color: #4ade80;
+}
+.mcp-row-status--pending {
+  color: #facc15;
+}
 
 /* Toggle switch */
 .mcp-toggle {
@@ -1054,19 +1200,29 @@ body {
   transition: background 0.25s ease;
   position: relative;
 }
-.mcp-toggle--on { background: var(--accent-color); justify-content: flex-end; }
-.mcp-toggle--off { background: rgba(255,255,255,0.15); justify-content: flex-start; }
-.mcp-toggle:disabled { opacity: 0.6; cursor: wait; }
+.mcp-toggle--on {
+  background: var(--accent-color);
+  justify-content: flex-end;
+}
+.mcp-toggle--off {
+  background: rgba(255, 255, 255, 0.15);
+  justify-content: flex-start;
+}
+.mcp-toggle:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
 .mcp-toggle-thumb {
   width: 16px;
   height: 16px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Loading / error states */
-.mcp-loading, .mcp-error {
+.mcp-loading,
+.mcp-error {
   padding: 1.5rem;
   text-align: center;
   font-size: 0.85rem;
@@ -1075,14 +1231,22 @@ body {
   justify-content: center;
   gap: 0.5rem;
 }
-.mcp-error { color: #f87171; }
-.mcp-loading { color: var(--text-muted); }
+.mcp-error {
+  color: #f87171;
+}
+.mcp-loading {
+  color: var(--text-muted);
+}
 .mcp-spin {
   animation: spin 1s linear infinite;
 }
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .mcp-reconnect-btn {
@@ -1098,8 +1262,13 @@ body {
   cursor: pointer;
   transition: background 0.2s;
 }
-.mcp-reconnect-btn:hover { background: rgba(250, 204, 21, 0.1); }
-.mcp-reconnect-btn:disabled { opacity: 0.5; cursor: wait; }
+.mcp-reconnect-btn:hover {
+  background: rgba(250, 204, 21, 0.1);
+}
+.mcp-reconnect-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
 
 .mcp-panel-footer {
   padding: 0.75rem 1.25rem;

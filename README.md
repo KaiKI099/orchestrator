@@ -2,6 +2,8 @@
 
 A multi-agent orchestration system with two specialist agent teams: **Marketing** (9 agents for SEO, ads, and growth research) and **ProCoder** (12 agents for local software development). Supports local models via **Ollama** and **LM Studio**, plus cloud models via **Anthropic Claude** and **NVIDIA NIM**.
 
+![Orchestrator](orchestrator.png)
+
 ---
 
 ## Agent Teams

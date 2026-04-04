@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Trash2, Settings, ChevronDown } from 'lucide-react';
+import { Download, Trash2, Settings, ChevronDown, FlaskConical } from 'lucide-react';
 
 /**
  * Header component with mode tabs, quick-switch buttons, and settings
@@ -16,6 +16,7 @@ export default function Header({
   onQuickSwitchBackend,
   onOpenModelSelector,
   onOpenMcpSettings,
+  onOpenModelTester,
 }) {
   const backendNames = {
     lmstudio: 'LM Studio',
@@ -101,6 +102,15 @@ export default function Header({
           <Settings size={15} />
           <span>MCP</span>
           {activeMcpCount > 0 && <span className="mcp-settings-badge">{activeMcpCount}</span>}
+        </button>
+
+        <button
+          className="model-tester-btn"
+          onClick={onOpenModelTester}
+          title="Test current model"
+        >
+          <FlaskConical size={15} />
+          <span>Test</span>
         </button>
       </div>
     </header>

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import McpSettings from './McpSettings';
 import ModelSelector from './ModelSelector';
+import ModelTester from './ModelTester';
 import Header from './components/Header';
 import CodeBlock from './components/CodeBlock';
 import PromptEditor from './components/PromptEditor';
@@ -70,6 +71,7 @@ export default function App() {
   const [showMcp, setShowMcp] = useState(false);
   const [activeMcpCount, setActiveMcpCount] = useState(0);
   const [showModelSelector, setShowModelSelector] = useState(false);
+  const [showModelTester, setShowModelTester] = useState(false);
   const [activeBackendLabel, setActiveBackendLabel] = useState('Ollama');
   const [activeModelLabel, setActiveModelLabel] = useState('');
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -526,6 +528,7 @@ export default function App() {
         onQuickSwitchBackend={quickSwitchBackend}
         onOpenModelSelector={() => setShowModelSelector(true)}
         onOpenMcpSettings={() => setShowMcp(true)}
+        onOpenModelTester={() => setShowModelTester(true)}
       />
 
       {/* ── Chat area ── */}
@@ -750,6 +753,16 @@ export default function App() {
 
       {showMcp && <McpSettings onClose={handleMcpClose} />}
       {showModelSelector && <ModelSelector onClose={handleModelClose} />}
+      {showModelTester && (
+        <ModelTester
+          onClose={() => setShowModelTester(false)}
+          currentBackend={(() => {
+            const map = { 'LM Studio': 'lmstudio', 'Ollama': 'ollama', 'Claude': 'claude', 'NVIDIA': 'nvidia', 'OpenRouter': 'openrouter' };
+            return map[activeBackendLabel] || activeBackendLabel.toLowerCase();
+          })()}
+          currentModel={activeModelLabel}
+        />
+      )}
 
       {/* ── System Prompt Editor Modal ── */}
       <PromptEditor

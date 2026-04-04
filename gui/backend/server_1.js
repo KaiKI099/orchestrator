@@ -16,7 +16,7 @@ const AGENT_SETS = { marketing: MARKETING_AGENTS, coder: CODER_AGENTS };
 // Load ProCoder system prompt from use.txt (beside .env, two levels up)
 const CODER_SYSTEM = fs.readFileSync(path.resolve(__dirname, '../../use.txt'), 'utf-8').trim();
 import { ModelQueue } from './job-queue.js';
-import { isVisionModelByName, isAudioModelByName, getModelCapabilities, checkOllamaCapabilities, checkOllamaVisionCapability, describeImage } from './vision-utils.js';
+import { isVisionModelByName, checkOllamaVisionCapability, describeImage } from './vision-utils.js';
 import {
   initialize as mcpInitialize,
   ensureRunning as mcpEnsureRunning,
@@ -69,14 +69,6 @@ const BACKENDS = {
     url: 'https://integrate.api.nvidia.com/v1',
     apiKey: process.env.NVIDIA_API_KEY || '',
     defaultModel: 'moonshotai/kimi-k2.5',
-  },
-  openrouter: {
-    key: 'openrouter',
-    name: 'OpenRouter',
-    icon: '🔀',
-    url: 'https://openrouter.ai/api/v1',
-    apiKey: process.env.OPENROUTER_API_KEY || '',
-    defaultModel: 'openai/gpt-4o',
   },
 };
 
@@ -327,23 +319,6 @@ async function fetchModelsFromBackend(key) {
     }
   }
 
-  // OpenRouter uses OpenAI-compatible API — fetch full model list
-  if (key === 'openrouter') {
-    if (!backend.apiKey) return { online: false, models: [], error: 'OPENROUTER_API_KEY not set' };
-    try {
-      const res = await fetch(`${url}/models`, {
-        headers: { 'Authorization': `Bearer ${backend.apiKey}` },
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const ids = (data.data || []).map(m => m.id).filter(Boolean);
-      return { online: true, models: ids.length > 0 ? ids.map(id => ({ id, contextLength: null })) : [{ id: backend.defaultModel, contextLength: null }] };
-    } catch (e) {
-      return { online: true, models: [{ id: backend.defaultModel, contextLength: null }] };
-    }
-  }
-
   try {
     const res = await fetch(`${url}/models`, { signal: AbortSignal.timeout(4000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -563,21 +538,19 @@ async function runAgentJob({ agentId, task, mcpTools, sseRes, agents, memoryCont
 // ── Model API ─────────────────────────────────────────────────────────────────
 
 app.get('/api/models', async (_req, res) => {
-  const [lmstudio, ollama, claude, nvidia, openrouter] = await Promise.all([
+  const [lmstudio, ollama, claude, nvidia] = await Promise.all([
     fetchModelsFromBackend('lmstudio'),
     fetchModelsFromBackend('ollama'),
     fetchModelsFromBackend('claude'),
     fetchModelsFromBackend('nvidia'),
-    fetchModelsFromBackend('openrouter'),
   ]);
   res.json({
     active: { backend: activeBackend, model: activeModel },
     backends: {
-      lmstudio:   { ...BACKENDS.lmstudio,   ...lmstudio,   apiKey: undefined },
-      ollama:     { ...BACKENDS.ollama,     ...ollama,     apiKey: undefined },
-      claude:     { ...BACKENDS.claude,     ...claude,     apiKey: undefined },
-      nvidia:     { ...BACKENDS.nvidia,     ...nvidia,     apiKey: undefined },
-      openrouter: { ...BACKENDS.openrouter, ...openrouter, apiKey: undefined },
+      lmstudio: { ...BACKENDS.lmstudio, ...lmstudio, apiKey: undefined },
+      ollama:   { ...BACKENDS.ollama,   ...ollama,   apiKey: undefined },
+      claude:   { ...BACKENDS.claude,   ...claude,   apiKey: undefined },
+      nvidia:   { ...BACKENDS.nvidia,   ...nvidia,   apiKey: undefined },
     },
   });
 });
@@ -615,28 +588,26 @@ app.post('/api/mcp/toggle/:name', async (req, res) => {
 
 /**
  * GET /api/vision-check
- * Returns whether the currently active model supports vision and audio input.
+ * Returns whether the currently active model supports vision input.
+ * Uses Ollama /api/show capabilities when available; falls back to name patterns.
  */
 app.get('/api/vision-check', async (_req, res) => {
   const backendKey = activeBackend;
   const model      = await resolveBackendModel(backendKey, null);
 
-  let vision = false;
-  let audio = false;
-
-  if (backendKey === 'ollama') {
+  let isVision = false;
+  if (backendKey === 'claude') {
+    // All Claude models support vision
+    isVision = true;
+  } else if (backendKey === 'ollama') {
     const nativeBase = BACKENDS.ollama.url.replace(/\/v1\/?$/, '');
-    const caps = await checkOllamaCapabilities(nativeBase, model);
-    const nameCaps = getModelCapabilities(backendKey, model);
-    vision = caps.vision !== null ? caps.vision : nameCaps.vision;
-    audio = caps.audio !== null ? caps.audio : nameCaps.audio;
+    const fromApi = await checkOllamaVisionCapability(nativeBase, model);
+    isVision = fromApi !== null ? fromApi : isVisionModelByName(model);
   } else {
-    const caps = getModelCapabilities(backendKey, model);
-    vision = caps.vision;
-    audio = caps.audio;
+    isVision = isVisionModelByName(model);
   }
 
-  res.json({ model, backend: backendKey, vision, audio, describeModel: 'adelnazmy2002/Qwen3-VL-8B-Instruct' });
+  res.json({ model, backend: backendKey, isVision, describeModel: 'adelnazmy2002/Qwen3-VL-8B-Instruct' });
 });
 
 /**
@@ -935,435 +906,6 @@ app.post('/api/chat', async (req, res) => {
     res.end();
   }
 });
-
-// ── Model Test API ────────────────────────────────────────────────────────────
-
-/**
- * POST /api/model-test
- * Runs a comprehensive test suite on the current (or specified) model.
- * Streams SSE events so the frontend can show live progress.
- *
- * Body: { model?: string, backend?: string, customMessage?: string }
- *
- * Tests:
- *   1. Speed — response latency for a trivial prompt
- *   2. JSON-only — can it return pure JSON with no preamble
- *   3. Function calling — can it call a single defined function
- *   4. Tool calling (multi) — can it call multiple tools in one response
- *   5. MCP tool calling — can it use real MCP tools if available
- *   6. Instruction discipline — does it follow exact instructions
- *   7. Custom message — optional user-provided message
- */
-app.post('/api/model-test', async (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-
-  const { model: requestedModel, backend: requestedBackend, customMessage } = req.body;
-
-  const backendKey = requestedBackend && BACKENDS[requestedBackend] ? requestedBackend : activeBackend;
-  const model = requestedModel || activeModel || await resolveBackendModel(backendKey, null);
-  const backendName = BACKENDS[backendKey]?.name ?? backendKey;
-
-  console.log(`🧪 Model test: backend=${backendKey}, model=${model}`);
-
-  console.log(`🧪 Model test: backend=${backendKey}, model=${model}`);
-
-  const emit = (event, data) => {
-    res.write(`event: ${event}\n`);
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
-  };
-
-  const results = [];
-  let totalScore = 0;
-  let totalWeight = 0;
-
-  try {
-    // ── Test 1: Speed ─────────────────────────────────────────────────────
-    emit('test_start', { id: 'speed', name: 'Response Speed', weight: 15 });
-    const speedStart = Date.now();
-    try {
-      const speedRes = await chatCompletion(backendKey, {
-        model, messages: [{ role: 'user', content: 'Reply with exactly: ready' }],
-        temperature: 0, max_tokens: 10, stream: false,
-      });
-      const speedElapsed = (Date.now() - speedStart) / 1000;
-      const speedContent = speedRes.choices?.[0]?.message?.content || '';
-      const speedOk = speedElapsed < 20;
-      const speedWarn = speedElapsed >= 60 ? `Very slow (${speedElapsed.toFixed(1)}s)` : speedElapsed >= 20 ? `Slow (${speedElapsed.toFixed(1)}s)` : null;
-      const speedResult = { id: 'speed', name: 'Response Speed', ok: speedOk, elapsed: speedElapsed, detail: `${speedElapsed.toFixed(1)}s — "${speedContent.trim().slice(0, 40)}"`, weight: 15, warning: speedWarn };
-      results.push(speedResult);
-      totalWeight += 15;
-      if (speedOk) totalScore += 15;
-      emit('test_done', speedResult);
-    } catch (e) {
-      const r = { id: 'speed', name: 'Response Speed', ok: false, elapsed: (Date.now() - speedStart) / 1000, detail: `Error: ${e.message}`, weight: 15, warning: 'Model call failed' };
-      results.push(r);
-      totalWeight += 15;
-      emit('test_done', r);
-    }
-
-    // ── Test 2: JSON-only output ──────────────────────────────────────────
-    emit('test_start', { id: 'json', name: 'JSON-only Output', weight: 25 });
-    try {
-      const jsonPrompt = 'Return a JSON object with two keys: "status" (value: "ok") and "value" (value: 42).';
-      const jsonRes = await chatCompletion(backendKey, {
-        model, messages: [{ role: 'user', content: jsonPrompt }],
-        temperature: 0.1, max_tokens: 120, stream: false,
-      });
-      const jsonRaw = jsonRes.choices?.[0]?.message?.content || '';
-      const jsonParsed = tryParseJsonSafe(jsonRaw);
-      const hasValidJson = jsonParsed !== null;
-      const hasCorrectKeys = hasValidJson && jsonParsed.status === 'ok' && jsonParsed.value === 42;
-      const jsonResult = {
-        id: 'json', name: 'JSON-only Output', ok: hasValidJson,
-        detail: hasCorrectKeys
-          ? 'Valid JSON with correct values'
-          : hasValidJson
-            ? `Valid JSON but keys/values differ: ${JSON.stringify(jsonParsed).slice(0, 100)}`
-            : `No valid JSON found in response`,
-        weight: 25,
-        warning: hasValidJson ? null : 'Model cannot produce parseable JSON — agent workflows may fail',
-        raw: jsonRaw.slice(0, 300),
-      };
-      results.push(jsonResult);
-      totalWeight += 25;
-      if (hasValidJson) totalScore += hasCorrectKeys ? 25 : 15;
-      emit('test_done', jsonResult);
-    } catch (e) {
-      const r = { id: 'json', name: 'JSON-only Output', ok: false, detail: `Error: ${e.message}`, weight: 25, warning: 'Model call failed' };
-      results.push(r);
-      totalWeight += 25;
-      emit('test_done', r);
-    }
-
-    // ── Test 3: Function calling (single) ─────────────────────────────────
-    emit('test_start', { id: 'function_call', name: 'Function Calling (single)', weight: 20 });
-    try {
-      const funcTools = [{
-        type: 'function',
-        function: {
-          name: 'get_weather',
-          description: 'Get the current weather for a city',
-          parameters: {
-            type: 'object',
-            properties: {
-              city: { type: 'string', description: 'City name' },
-              unit: { type: 'string', enum: ['celsius', 'fahrenheit'] },
-            },
-            required: ['city'],
-          },
-        },
-      }];
-      const funcRes = await chatCompletion(backendKey, {
-        model, messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
-        temperature: 0, max_tokens: 200, stream: false,
-        tools: funcTools, tool_choice: 'auto',
-      });
-      const funcChoice = funcRes.choices?.[0];
-      const funcCalls = funcChoice?.message?.tool_calls || [];
-      const funcOk = funcCalls.length > 0 && funcCalls[0].function.name === 'get_weather';
-      let funcArgs = {};
-      if (funcCalls.length > 0) {
-        try { funcArgs = JSON.parse(funcCalls[0].function.arguments || '{}'); } catch {}
-      }
-      const funcResult = {
-        id: 'function_call', name: 'Function Calling (single)', ok: funcOk,
-        detail: funcOk
-          ? `Called get_weather(${JSON.stringify(funcArgs)})`
-          : `No tool call — finish_reason: ${funcChoice?.finish_reason || 'unknown'}`,
-        weight: 20,
-        warning: funcOk ? null : 'Model did not call the function — may not support function calling',
-        tool_calls: funcCalls,
-      };
-      results.push(funcResult);
-      totalWeight += 20;
-      if (funcOk) totalScore += 20;
-      emit('test_done', funcResult);
-    } catch (e) {
-      const r = { id: 'function_call', name: 'Function Calling (single)', ok: false, detail: `Error: ${e.message}`, weight: 20, warning: 'Model call failed' };
-      results.push(r);
-      totalWeight += 20;
-      emit('test_done', r);
-    }
-
-    // ── Test 4: Tool calling (multi-tool) ─────────────────────────────────
-    emit('test_start', { id: 'tool_call', name: 'Tool Calling (multi)', weight: 15 });
-    try {
-      const multiTools = [
-        {
-          type: 'function',
-          function: {
-            name: 'get_current_temperature',
-            description: 'Get the current temperature for a city',
-            parameters: {
-              type: 'object',
-              properties: {
-                city: { type: 'string', description: 'City name' },
-                unit: { type: 'string', enum: ['celsius', 'fahrenheit'], description: 'Temperature unit' },
-              },
-              required: ['city'],
-            },
-          },
-        },
-        {
-          type: 'function',
-          function: {
-            name: 'get_humidity',
-            description: 'Get the current humidity for a city',
-            parameters: {
-              type: 'object',
-              properties: {
-                city: { type: 'string', description: 'City name' },
-              },
-              required: ['city'],
-            },
-          },
-        },
-      ];
-      const multiRes = await chatCompletion(backendKey, {
-        model, messages: [{ role: 'user', content: 'What is the temperature and humidity in Tokyo right now? Call both tools.' }],
-        temperature: 0, max_tokens: 300, stream: false,
-        tools: multiTools, tool_choice: 'auto',
-      });
-      const multiChoice = multiRes.choices?.[0];
-      const multiCalls = multiChoice?.message?.tool_calls || [];
-      const hasTemp = multiCalls.some(tc => tc.function.name === 'get_current_temperature');
-      const hasHumidity = multiCalls.some(tc => tc.function.name === 'get_humidity');
-      const multiOk = hasTemp && hasHumidity;
-      const multiResult = {
-        id: 'tool_call', name: 'Tool Calling (multi)', ok: multiOk,
-        detail: multiOk
-          ? `Called ${multiCalls.length} tools: ${multiCalls.map(tc => tc.function.name).join(', ')}`
-          : `Called ${multiCalls.length} tool(s): ${multiCalls.map(tc => tc.function.name).join(', ') || 'none'}`,
-        weight: 15,
-        warning: multiOk ? null : 'Model did not call both expected tools',
-        tool_calls: multiCalls,
-      };
-      results.push(multiResult);
-      totalWeight += 15;
-      if (multiOk) totalScore += 15;
-      emit('test_done', multiResult);
-    } catch (e) {
-      const r = { id: 'tool_call', name: 'Tool Calling (multi)', ok: false, detail: `Error: ${e.message}`, weight: 15, warning: 'Model call failed' };
-      results.push(r);
-      totalWeight += 15;
-      emit('test_done', r);
-    }
-
-    // ── Test 5: MCP tool calling (real tools) ─────────────────────────────
-    emit('test_start', { id: 'mcp_call', name: 'MCP Tool Calling', weight: 10 });
-    try {
-      const mcpTools = await getAllTools();
-      if (mcpTools.length === 0) {
-        const mcpResult = {
-          id: 'mcp_call', name: 'MCP Tool Calling', ok: true,
-          detail: 'No MCP servers running — skipped (not a failure)',
-          weight: 10, warning: null, skipped: true,
-        };
-        results.push(mcpResult);
-        totalWeight += 10;
-        totalScore += 10;
-        emit('test_done', mcpResult);
-      } else {
-        // Build tool list for prompt
-        const toolList = mcpTools.map(t => `- ${t.function.name}: ${t.function.description}`).join('\n');
-        // Use a prompt that explicitly requires tool usage
-        const mcpPrompt = `You have these tools available:\n${toolList}\n\nUse the appropriate tool to list files on the Desktop.`;
-        const mcpRes = await chatCompletion(backendKey, {
-          model, messages: [{ role: 'user', content: mcpPrompt }],
-          temperature: 0, max_tokens: 300, stream: false,
-          tools: mcpTools, tool_choice: 'auto',
-        });
-        const mcpChoice = mcpRes.choices?.[0];
-        const mcpCalls = mcpChoice?.message?.tool_calls || [];
-        const mcpOk = mcpCalls.length > 0;
-        const mcpResult = {
-          id: 'mcp_call', name: 'MCP Tool Calling', ok: mcpOk,
-          detail: mcpOk
-            ? `Called ${mcpCalls.length} MCP tool(s): ${mcpCalls.map(tc => tc.function.name).join(', ')}`
-            : `No MCP tool called — finish_reason: ${mcpChoice?.finish_reason || 'unknown'}. Model answered from knowledge instead.`,
-          weight: 10,
-          warning: mcpOk ? null : 'Model did not call MCP tools — it prefers answering from training data',
-          tool_calls: mcpCalls,
-          mcp_available: mcpTools.length,
-        };
-        results.push(mcpResult);
-        totalWeight += 10;
-        if (mcpOk) totalScore += 10;
-        emit('test_done', mcpResult);
-      }
-    } catch (e) {
-      const r = { id: 'mcp_call', name: 'MCP Tool Calling', ok: false, detail: `Error: ${e.message}`, weight: 10, warning: 'Model call failed' };
-      results.push(r);
-      totalWeight += 10;
-      emit('test_done', r);
-    }
-
-    // ── Test 6: Vision capability ─────────────────────────────────────────
-    emit('test_start', { id: 'vision', name: 'Vision Capability', weight: 5 });
-    try {
-      let isVision = false;
-      if (backendKey === 'ollama') {
-        const nativeBase = BACKENDS.ollama.url.replace(/\/v1\/?$/, '');
-        const caps = await checkOllamaCapabilities(nativeBase, model);
-        const nameCaps = getModelCapabilities(backendKey, model);
-        isVision = caps.vision !== null ? caps.vision : nameCaps.vision;
-      } else {
-        const caps = getModelCapabilities(backendKey, model);
-        isVision = caps.vision;
-      }
-      const visionResult = {
-        id: 'vision', name: 'Vision Capability', ok: isVision,
-        detail: isVision ? 'Model supports vision (image input)' : 'Model does NOT support vision',
-        weight: 5,
-        warning: isVision ? null : 'Cannot process images — use a vision-capable model for image tasks',
-      };
-      results.push(visionResult);
-      totalWeight += 5;
-      if (isVision) totalScore += 5;
-      emit('test_done', visionResult);
-    } catch (e) {
-      const r = { id: 'vision', name: 'Vision Capability', ok: false, detail: `Error checking vision: ${e.message}`, weight: 5, warning: 'Could not determine vision capability' };
-      results.push(r);
-      totalWeight += 5;
-      emit('test_done', r);
-    }
-
-    // ── Test 6b: Audio capability ─────────────────────────────────────────
-    emit('test_start', { id: 'audio', name: 'Audio Capability', weight: 5 });
-    try {
-      let isAudio = false;
-      if (backendKey === 'ollama') {
-        const nativeBase = BACKENDS.ollama.url.replace(/\/v1\/?$/, '');
-        const caps = await checkOllamaCapabilities(nativeBase, model);
-        const nameCaps = getModelCapabilities(backendKey, model);
-        isAudio = caps.audio !== null ? caps.audio : nameCaps.audio;
-      } else {
-        const caps = getModelCapabilities(backendKey, model);
-        isAudio = caps.audio;
-      }
-      const audioResult = {
-        id: 'audio', name: 'Audio Capability', ok: isAudio,
-        detail: isAudio ? 'Model supports audio input' : 'Model does NOT support audio',
-        weight: 5,
-        warning: isAudio ? null : 'Cannot process audio — use an audio-capable model for voice tasks',
-      };
-      results.push(audioResult);
-      totalWeight += 5;
-      if (isAudio) totalScore += 5;
-      emit('test_done', audioResult);
-    } catch (e) {
-      const r = { id: 'audio', name: 'Audio Capability', ok: false, detail: `Error checking audio: ${e.message}`, weight: 5, warning: 'Could not determine audio capability' };
-      results.push(r);
-      totalWeight += 5;
-      emit('test_done', r);
-    }
-
-    // ── Test 7: Instruction discipline ────────────────────────────────────
-    emit('test_start', { id: 'discipline', name: 'Instruction Discipline', weight: 10 });
-    try {
-      const discPrompt = 'Return a JSON object with "audit_id" set to "meta-description" and "action" set to "add_meta_tag".';
-      const discRes = await chatCompletion(backendKey, {
-        model, messages: [{ role: 'user', content: discPrompt }],
-        temperature: 0, max_tokens: 120, stream: false,
-      });
-      const discRaw = discRes.choices?.[0]?.message?.content || '';
-      const discParsed = tryParseJsonSafe(discRaw);
-      const hasValidJson = discParsed !== null;
-      const hasCorrectValues = hasValidJson && discParsed.audit_id === 'meta-description' && discParsed.action === 'add_meta_tag';
-      const discResult = {
-        id: 'discipline', name: 'Instruction Discipline', ok: hasCorrectValues,
-        detail: hasCorrectValues
-          ? 'JSON with correct values found'
-          : hasValidJson
-            ? `JSON found but values differ: ${JSON.stringify(discParsed).slice(0, 120)}`
-            : 'No valid JSON found',
-        weight: 10,
-        warning: hasCorrectValues ? null : 'Model struggles with precise instruction following',
-        raw: discRaw.slice(0, 300),
-      };
-      results.push(discResult);
-      totalWeight += 10;
-      if (hasCorrectValues) totalScore += 10;
-      else if (hasValidJson) totalScore += 5;
-      emit('test_done', discResult);
-    } catch (e) {
-      const r = { id: 'discipline', name: 'Instruction Discipline', ok: false, detail: `Error: ${e.message}`, weight: 10, warning: 'Model call failed' };
-      results.push(r);
-      totalWeight += 10;
-      emit('test_done', r);
-    }
-
-    // ── Test 8: Custom message (optional) ─────────────────────────────────
-    if (customMessage && customMessage.trim().length > 0) {
-      emit('test_start', { id: 'custom', name: 'Custom Message', weight: 5 });
-      try {
-        const customStart = Date.now();
-        const customRes = await chatCompletion(backendKey, {
-          model, messages: [{ role: 'user', content: customMessage.trim() }],
-          temperature: 0.7, max_tokens: 500, stream: false,
-        });
-        const customElapsed = (Date.now() - customStart) / 1000;
-        const customContent = customRes.choices?.[0]?.message?.content || '';
-        const customResult = {
-          id: 'custom', name: 'Custom Message', ok: true,
-          elapsed: customElapsed,
-          detail: `${customElapsed.toFixed(1)}s — ${customContent.slice(0, 200)}${customContent.length > 200 ? '...' : ''}`,
-          weight: 5, warning: null,
-          response: customContent,
-        };
-        results.push(customResult);
-        totalWeight += 5;
-        totalScore += 5;
-        emit('test_done', customResult);
-      } catch (e) {
-        const r = { id: 'custom', name: 'Custom Message', ok: false, detail: `Error: ${e.message}`, weight: 5, warning: 'Model call failed' };
-        results.push(r);
-        totalWeight += 5;
-        emit('test_done', r);
-      }
-    }
-
-    // ── Final summary ─────────────────────────────────────────────────────
-    const score = totalWeight > 0 ? Math.round(totalScore / totalWeight * 100) : 0;
-    const warnings = results.filter(r => r.warning).map(r => r.warning);
-    const verdict = score >= 90 ? 'Excellent — model handles all tasks reliably'
-      : score >= 70 ? 'Good — model works well, minor issues only'
-      : score >= 50 ? 'Usable — passes minimum requirements but may need retries'
-      : score >= 30 ? 'Marginal — expect errors in agent workflows'
-      : 'Not recommended — cannot reliably produce structured output';
-
-    emit('summary', {
-      ok: score >= 50 && results.find(r => r.id === 'json')?.ok,
-      score, verdict, warnings,
-      model, backend: backendKey, backendName,
-      tests: results,
-    });
-
-    res.write(`data: [DONE]\n\n`);
-    res.end();
-
-  } catch (e) {
-    emit('error', { message: e.message });
-    res.write(`data: [DONE]\n\n`);
-    res.end();
-  }
-});
-
-function tryParseJsonSafe(text) {
-  let t = text.trim();
-  for (const fence of ['```json', '```JSON', '```']) {
-    if (t.startsWith(fence)) t = t.slice(fence.length);
-  }
-  t = t.replace(/```$/, '').trim();
-  const start = t.indexOf('{');
-  const end = t.lastIndexOf('}');
-  if (start !== -1 && end !== -1) {
-    try { return JSON.parse(t.slice(start, end + 1)); } catch {}
-  }
-  return null;
-}
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 

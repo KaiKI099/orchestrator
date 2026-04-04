@@ -1,8 +1,50 @@
 # Orchestrator — Multi-Agent AI System
 
-A multi-agent orchestration system with two specialist agent teams: **Marketing** (9 agents for SEO, ads, and growth research) and **ProCoder** (12 agents for local software development). Supports local models via **Ollama** and **LM Studio**, plus cloud models via **Anthropic Claude** and **NVIDIA NIM**.
+A multi-agent orchestration platform with two specialist agent teams: **Marketing** (9 agents for SEO, ads, and growth research) and **ProCoder** (12 agents for local software development). Supports **5 backends** — Ollama, LM Studio, Anthropic Claude, NVIDIA NIM, and OpenRouter — with live model testing for function calling, tool calling, MCP, vision, and audio capabilities.
+
+> **Use weaker local models in a strict agentic environment.** The orchestrator compensates for limited model capability through structured routing, multi-agent delegation, and MCP tool augmentation. A small 7B model with the right tools often outperforms a large model flying blind.
 
 ![Orchestrator](orchestrator.png)
+
+---
+
+## Available Models
+
+Models are discovered automatically from your configured backends. Set API keys in `.env` to unlock cloud providers.
+
+### Local Models (no API key required)
+
+| Backend | How it works | Models shown |
+|---|---|---|
+| **Ollama** | `ollama serve` + `ollama pull <model>` | All pulled models with context length |
+| **LM Studio** | Local Server tab → Start Server | All loaded models in LM Studio |
+
+### Cloud Models (API key required)
+
+| Backend | Env variable | Models available |
+|---|---|---|
+| **Anthropic Claude** | `ANTHROPIC_API_KEY` | claude-sonnet-4, claude-opus, claude-sonnet-3.7, claude-haiku |
+| **NVIDIA NIM** | `NVIDIA_API_KEY` | llama-3.1-70b, mistral-large, nemotron, codegemma |
+| **OpenRouter** | `OPENROUTER_API_KEY` | 200+ models — gpt-4o, claude-3.5-sonnet, gemini-2.0, deepseek, qwen, llama, mistral, and more |
+
+---
+
+## Model Tester
+
+Test any model before using it. Click the **🧪 Test** button in the header to run a capability suite:
+
+| Test | What it checks |
+|---|---|
+| **Response Speed** | Latency for a trivial prompt (< 20s = OK) |
+| **JSON Output** | Can the model return parseable JSON? |
+| **Function Calling** | Single tool call with correct arguments |
+| **Tool Calling (multi)** | Parallel calls to multiple tools |
+| **MCP Tool Calling** | Uses real MCP servers (filesystem, shell, etc.) |
+| **Vision** | Supports image input (detected via API or model name) |
+| **Audio** | Supports audio input (Whisper, GPT-4o-audio, Gemini, Claude) |
+| **Instruction Discipline** | Follows precise JSON structure instructions |
+
+Results stream live with a weighted score (0–100) and verdict.
 
 ---
 
@@ -63,11 +105,13 @@ You: "build a REST API with auth and postgres"
 │          Web UI  (React)             │  ← Vite dev server :5173
 │  chat · model picker · team switcher │
 │  MCP toggles · system prompt editor  │
+│  🧪 Model Tester                     │
 └──────────────┬───────────────────────┘
                │ SSE stream
 ┌──────────────▼───────────────────────┐
 │       Backend API  (Express)         │  ← port 3001
-│  /api/chat  /api/models  /mcp        │
+│  /api/chat  /api/models  /api/model-test │
+│  /mcp  /api/vision-check             │
 └──────────────┬───────────────────────┘
                │
       ┌────────▼──────────┐
@@ -78,6 +122,7 @@ You: "build a REST API with auth and postgres"
    ┌───────────▼──────────────────────────┐
    │  Ollama / LM Studio  (local)         │  ← your own hardware
    │  Claude / NVIDIA NIM (cloud)         │  ← API key required
+   │  OpenRouter          (cloud)         │  ← API key required
    └───────────┬──────────────────────────┘
                │  (optional)
    ┌───────────▼──────────────────────────┐
@@ -95,7 +140,7 @@ You: "build a REST API with auth and postgres"
 
 - [Ollama](https://ollama.com) or [LM Studio](https://lmstudio.ai) for local models
 - Node.js 18+
-- **Cloud models (optional):** Anthropic API key and/or NVIDIA NIM API key
+- **Cloud models (optional):** API keys for Anthropic, NVIDIA, and/or OpenRouter
 
 ---
 
@@ -121,7 +166,7 @@ cp .env.example .env
 ```env
 LM_STUDIO_URL=http://192.168.x.x:1234/v1
 OLLAMA_URL=http://localhost:11434/v1
-DEFAULT_BACKEND=ollama          # ollama | lmstudio | claude | nvidia
+DEFAULT_BACKEND=ollama          # ollama | lmstudio | claude | nvidia | openrouter
 DEFAULT_MODEL=                  # leave blank = auto-detect
 TEMPERATURE=0.7
 MAX_TOKENS=32752
@@ -130,6 +175,7 @@ STREAM=true
 # Cloud (optional)
 ANTHROPIC_API_KEY=sk-ant-...
 NVIDIA_API_KEY=nvapi-...
+OPENROUTER_API_KEY=sk-or-...
 ```
 
 For ProCoder, place your coding system prompt in `use.txt` at the repo root. The backend loads it automatically at startup.
@@ -178,7 +224,7 @@ Configure servers in `mcp-config.json`.
 |---|---|
 | Frontend | React 18, Vite, lucide-react |
 | Backend | Express 5, Node.js ESM |
-| LLM runtime | Ollama · LM Studio (local) · Claude · NVIDIA NIM (cloud) |
+| LLM runtime | Ollama · LM Studio (local) · Claude · NVIDIA NIM · OpenRouter (cloud) |
 | Tool protocol | Model Context Protocol (MCP) |
 | Streaming | Server-Sent Events (SSE) |
 
@@ -198,12 +244,13 @@ orchestrator/
     │   ├── server.js        Express API — handles both agent teams
     │   ├── agents.js        Marketing agent definitions
     │   ├── agents-code.js   ProCoder agent definitions
-    │   ├── vision-utils.js  Image description via vision models
+    │   ├── vision-utils.js  Vision/audio capability detection
     │   └── mcp-manager.js   MCP server lifecycle
     └── frontend/
         └── src/
-            ├── App.jsx           Main chat interface + team switcher
+            ├── App.jsx            Main chat interface + team switcher
             ├── ModelSelector.jsx  Backend & model picker
+            ├── ModelTester.jsx    🧪 Live model capability tester
             └── McpSettings.jsx    MCP toggle UI
 ```
 
